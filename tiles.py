@@ -46,6 +46,27 @@ for i,label in enumerate(labels):
 
 
 # # # 2. Create script that assembles tiles randomly into larger images.
+import scipy as sp
+import svgwrite
+
+grid_w = 20
+grid_h = 10
+tile_w = 50
+tile_h = 50
+page_w = grid_w * tile_w
+page_h = grid_h * tile_h
+
+dwg = svgwrite.Drawing(filename = "./tmp_tile_grid.svg", size = (str(page_w)+"px", str(page_h)+"px"))
+for i in range(grid_w):
+	for j in range(grid_h):
+		x_i = i*tile_w
+		x_j = j*tile_h
+		lab_k = sp.random.randint(len(labels))
+		image = svgwrite.image.Image("./"+labels[lab_k]+".svg", insert=(x_i,x_j), size=(tile_w,tile_h))
+		image.stretch()
+		dwg.add(image)
+
+dwg.save()
 
 # # # 3. Create script that assembles tiles iteratively according to continuity conditions.
  
