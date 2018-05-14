@@ -69,5 +69,82 @@ for i in range(grid_w):
 dwg.save()
 
 # # # 3. Create script that assembles tiles iteratively according to continuity conditions.
- 
+
+import numpy as np
+
+# Recall from earlier:
+labels = ['b_ne','b_nw','b_sw','b_se','w_ne','w_nw','w_sw','w_se']
+# left / up / right / down colors of each tile:
+edge_colors = np.zeros((len(labels),5)).astype(int)
+# First, assume white background
+# black = 0
+# white = 1
+edge_colors[:,0] = [1*(label[-1]=="e") for label in labels]
+edge_colors[:,1] = [1*(label[-2]=="s") for label in labels]
+edge_colors[:,2] = 1-edge_colors[:,0]
+edge_colors[:,3] = 1-edge_colors[:,1]
+edge_colors[4:,:] = 1-edge_colors[4:,:]
+edge_colors[:,4] = range(edge_colors.shape[0])
+
+# Create a planned layout of tile IDs
+import scipy as sp
+import svgwrite
+
+grid_w = 20
+grid_h = 10
+tile_w = 50
+tile_h = 50
+page_w = grid_w * tile_w
+page_h = grid_h * tile_h
+
+tile_ids = np.zeros((grid_w,grid_h)).astype(int)-1
+tile_ids[grid_w-1,grid_h-1] = sp.random.randint(len(labels))
+
+# Set up a solid outside white border
+# tile_ids[grid_w-1,:] = 3
+# tile_ids[:,grid_h-1] = 3
+
+# Set up an alternating border
+# tile_ids[grid_w-1,:] = [[1,3][np.mod(i,2)] for i in range(grid_h)]
+# tile_ids[:,grid_h-1] = [[1,3][np.mod(i,2)] for i in range(grid_w)]
+
+for i in reversed(range(grid_w)):
+	for j in reversed(range(grid_h)):
+		if tile_ids[i,j]<0:
+			right_id = -1
+			under_id = -1
+			available_edges = edge_colors[:,:]
+			if i<grid_w-1:
+				right_id = tile_ids[i+1,j]
+				# Only keep options where right edge is the same as left edge of tile to the right
+				available_edges = available_edges[available_edges[:,2]==edge_colors[right_id,0],:]
+			if j<grid_h-1:
+				under_id = tile_ids[i,j+1]
+				# Only keep options where bottom edge is the same as the top edge of the tile underneath
+				available_edges = available_edges[available_edges[:,3]==edge_colors[under_id,1],:]
+			if np.min(available_edges.shape)==0:
+				print "No options, reached a logical impasse."
+			else:
+				tile_ids[i,j] = available_edges[sp.random.randint(available_edges.shape[0]),4]
+
+# tile_constraints = np.zeros(tile_ids.shape+[4])-1
+# If constraint is -1, there's no sontraint
+# Else, constraint is that tile edge color value equals value
+
+dwg = svgwrite.Drawing(filename = "./constrained_grid.svg", size = (str(page_w)+"px", str(page_h)+"px"))
+for i in range(grid_w):
+	for j in range(grid_h):
+		x_i = i*tile_w
+		x_j = j*tile_h
+		lab_k = tile_ids[i,j]
+		image = svgwrite.image.Image("./"+labels[lab_k]+".svg", insert=(x_i,x_j), size=(tile_w,tile_h))
+		image.stretch()
+		dwg.add(image)
+
+dwg.save()
+
+
+
+
+
 
