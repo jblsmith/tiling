@@ -144,7 +144,58 @@ for i in range(grid_w):
 dwg.save()
 
 
+# # # 4. Create grids with new types of tiles
 
+# More tiles:
+# solids:
+# labels = ['b_n+s','b_e+w','w_n+s','w_e+w']
+# 'b_n','b_e','b_s','b_w',
+# 'w_n','w_e','w_s','w_w',
+
+from xml.etree import ElementTree as et
+
+# circle_color = [label[0]=="w" for label in labels]
+height = 120
+width = 120
+# center_x = [width*(label[-1]=="e") for label in labels]
+# center_y = [height*(label[-2]=="s") for label in labels]
+
+def write_elementtree(doc, filename):
+	f = open(filename, 'w')
+	f.write('<?xml version=\"1.0\" standalone=\"no\"?>\n')
+	f.write('<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\"\n')
+	f.write('\"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd\">\n')
+	f.write(et.tostring(doc))
+	f.close()
+
+
+labels = ['','n','e','s','w','ns','ew','nes','new','nsw','esw']
+circle_coords = {'n': [0,-1], 'e': [1,0], 's': [0,1], 'w':[-1,0]}
+canvas_coords = {key:[0,0] for key in circle_coords.keys()}
+for key in circle_coords:
+	x,y = circle_coords[key]
+	canvas_coords[key] = [x*width*0.5+width*0.5,y*height*0.5 + height*0.5]
+
+for bg_color_name in ['b','w']:
+	for i,label in enumerate(labels):
+		doc = et.Element('svg', width=str(width), height=str(height), version='1.1', xmlns='http://www.w3.org/2000/svg')
+		# color=255*circle_color[i]
+		# bg_color = 255-color
+		bg_color = 255*(bg_color_name=="w")
+		color = 255-bg_color
+		et.SubElement(doc, 'rect', width=str(width), height=str(height), fill='rgb({0}, {1}, {2})'.format(bg_color,bg_color,bg_color))
+		for letter in label:
+			et.SubElement(doc, 'circle', cx=str(canvas_coords[letter][0]), cy=str(canvas_coords[letter][1]), r=str(height/2), fill='rgb({0}, {1}, {2})'.format(color,color,color))
+		filename = bg_color_name + "_mini-" + label
+		write_elementtree(doc, filename)
+
+	
+
+
+# Also, clean up the above code into routines, objects?
+
+
+# # # 5. Create bot to generate output and post to Instagram
 
 
 
