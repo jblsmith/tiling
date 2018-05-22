@@ -247,6 +247,9 @@ class Tile(object):
 		return (np.power(x-cx,2)/np.power(a,2) + np.power(y-cy,2)/np.power(b,2))
 	
 	def get_set_color(self, points, ellipses):
+		if not ellipses:
+			print "Empty tile, so assigning background color."
+			return self.bg_color
 		point_tests = np.array([[self.check_if_point_in_ellipse(point, ellipse) for ellipse in self.ellipses] for point in points])
 		# Is every point in (or on the edge of) at least one ellipse?
 		test_inclusion = np.all([np.min(test_result) <= 1 for test_result in point_tests])
@@ -267,11 +270,21 @@ class Tile(object):
 		# Create blank canvas of appropriate size:
 		self.doc = et.Element('svg', width=str(self.tile_size[0]), height=str(self.tile_size[1]), version='1.1', xmlns='http://www.w3.org/2000/svg')
 		# Paint in the background rectangle:
-		et.SubElement(self.doc, 'rect', width=str(self.tile_size[0]), height=str(self.tile_size[1]), fill='rgb({0}, {1}, {2})'.format(self.bg_color[0],self.bg_color[1],self.bg_color[2]))
+		bg_color_string = 'rgb({0}, {1}, {2})'.format(self.bg_color[0],self.bg_color[1],self.bg_color[2])
+		fg_color_string = 'rgb({0}, {1}, {2})'.format(self.fg_color[0],self.fg_color[1],self.fg_color[2])
+		et.SubElement(self.doc, 'rect', width=str(self.tile_size[0]), height=str(self.tile_size[1]), fill=bg_color_string)
+		# , stroke=bg_color_string)
+		# self.doc[-1].set("stroke-width","2")
 		# Paint in the foreground circles:
 		for single_ellipse_coords in self.ellipses:
 			[cx, cy, rx, ry] = self.get_canvas_coords(single_ellipse_coords)
-			et.SubElement(self.doc, 'ellipse', cx=str(cx), cy=str(cy), rx=str(rx), ry=str(ry), fill='rgb({0}, {1}, {2})'.format(self.fg_color[0],self.fg_color[1],self.fg_color[2]))
+			et.SubElement(self.doc, 'ellipse', cx=str(cx), cy=str(cy), rx=str(rx), ry=str(ry), fill=fg_color_string)
+			# , stroke=fg_color_string)
+			# self.doc[-1].set("stroke-width","2")
+		# for i in range(len(self.doc)):
+		# 	for j in range(len(self.doc[i].keys())):
+		# 		if self.doc[i].keys()[j]=="stroke_width":
+		# 			self.doc[i].keys()[j]="stroke-width"
 	
 	def write_tile_layout(self):
 		f = open(self.make_tile_path(), 'w')
@@ -285,7 +298,7 @@ class Tile(object):
 		self.imagine_tile_layout()
 		self.write_tile_layout()
 
-a = Tile(bg_color="white", fg_color="black", ellipses=[(-1,0,1.1,1), (1,0,1.1,1)], name="tmp")
+a = Tile(bg_color="white", fg_color="red", ellipses=[(-1,0,1.1,1), (1,0,1.1,1)], name="tmp")
 a.create_tile_image()
 a.get_ellipse_edge_colors()
 
@@ -320,28 +333,46 @@ class Quilt(object):
 	def make_quilt_path(self):
 		return self.local_save_dir + "/" + self.name + ".svg"
 	
-	def define_tile_designs(self):
-		# # # Tile sets
-		# Original set of tiles:
-		labels = ['ne','nw','sw','se']
-		center_y = np.array([1-2*(label[0]=="s") for label in labels])
-		center_x = np.array([2*(label[1]=="e")-1 for label in labels])
+	def define_tile_designs(self, color_set = [["white","black","yellow"]], tile_groups=["basic","1s","2s","3s","solids"]):
+		# Original set of tiles
+		if len(color_set)==1:
+			fg_colors = color_set
+			bg_colors = color_set
+		elif len(color_set)==2:
+			fg_colors, bg_colors = color_set
+		elif len(color_set)>2:
+			print "Error! Ill formatted color set."
+		import itertools
 		tile_set = []
-		for i,label in enumerate(labels):
-			tile_set += [Tile(bg_color="white", fg_color="black", ellipses=[(center_x[i],center_y[i],2,2)], name="b_"+label)]
-			tile_set += [Tile(bg_color="black", fg_color="white", ellipses=[(center_x[i],center_y[i],2,2)], name="w_"+label)]
-		labels = ['x','n','e','s','w','ns','ew','nes','new','nsw','esw']
-		circle_coords = {'n': [0,-1], 'e': [1,0], 's': [0,1], 'w':[-1,0], 'x':[3,3]}
-		# canvas_coords = {key:[0,0] for key in circle_coords.keys()}
-		for i,label in enumerate(labels):
-			tmp_tile_w = Tile(bg_color="black", fg_color="white", ellipses=[], name="w_"+label)
-			tmp_tile_b = Tile(bg_color="white", fg_color="black", ellipses=[], name="b_"+label)
-			for letter in label:
-				tmp_tile_w.ellipses += [(circle_coords[letter][0],circle_coords[letter][1],1,1)]
-				tmp_tile_b.ellipses += [(circle_coords[letter][0],circle_coords[letter][1],1,1)]
-			tile_set += [tmp_tile_w, tmp_tile_b]
-		for tmp_tile in tile_set:
-			tmp_tile.create_tile_image()
+		if "solids" in tile_groups:
+			for bg_color in bg_colors:
+				tile_set += [Tile(bg_color=bg_color, fg_color=bg_color, ellipses=[], name=bg_color+"_solid")]		
+		color_combos = list(itertools.product(fg_colors, bg_colors))
+		for fg_color,bg_color in color_combos:
+		# for fg_color,bg_color in itertools.permutations(color_set, 2):
+			name_stem = fg_color + "_on_" + bg_color + "_"
+			if "basic" in tile_groups:
+				labels = ['ne','nw','sw','se']
+				center_y = np.array([1-2*(label[0]=="s") for label in labels])
+				center_x = np.array([2*(label[1]=="e")-1 for label in labels])
+				for i,label in enumerate(labels):
+					tile_set += [Tile(bg_color=bg_color, fg_color=fg_color, ellipses=[(center_x[i],center_y[i],2,2)], name=name_stem+label)]
+			labels = []
+			if "1s" in tile_groups:
+				labels += ['n','e','s','w']
+			if "2s" in tile_groups:
+				labels += ['ns','ew']
+			if "3s" in tile_groups:
+				labels += ['nes','new','nsw','esw']
+			circle_coords = {'n': [0,-1], 'e': [1,0], 's': [0,1], 'w':[-1,0], 'x':[3,3]}
+			# canvas_coords = {key:[0,0] for key in circle_coords.keys()}
+			for i,label in enumerate(labels):
+				tmp_tile = Tile(bg_color=bg_color, fg_color=fg_color, ellipses=[], name=name_stem+label)
+				for letter in label:
+					tmp_tile.ellipses += [(circle_coords[letter][0],circle_coords[letter][1],1,1)]
+				tile_set += [tmp_tile]
+			for tmp_tile in tile_set:
+				tmp_tile.create_tile_image()
 		self.tile_set = tile_set
 		# edge_colors[i,j,:] gives the RGB values for the color of the jth edge (clockwise from top) of the ith tile.
 		self.edge_colors = np.array([tmp_tile.get_ellipse_edge_colors() for tmp_tile in tile_set])
@@ -407,15 +438,17 @@ class Quilt(object):
 						if j>0:
 							self.tile_constraints[i,j-1,1,:] = self.tile_constraints[i,j,3,:]
 	
-	def write_quilt(self):
+	def write_quilt(self, name=None):
+		if name:
+			self.name = name
 		dwg = svgwrite.Drawing(filename = self.make_quilt_path(), size = (str(self.page_w)+"px", str(self.page_h)+"px"))
 		for i in range(self.grid_w):
 			for j in range(self.grid_h):
-				x_i = i*self.tile_w
-				x_j = j*self.tile_h
+				x_i = i*self.tile_w-.1
+				x_j = j*self.tile_h-.1
 				lab_k = self.tile_ids[j,i]
 				subimage_path = self.tile_set[lab_k].make_tile_path()
-				image = svgwrite.image.Image(subimage_path, insert=(x_i,x_j), size=(self.tile_w,self.tile_h))
+				image = svgwrite.image.Image(subimage_path, insert=(x_i,x_j), size=(self.tile_w+.2,self.tile_h+.2))
 				image.stretch()
 				dwg.add(image)
 		dwg.save()
@@ -425,24 +458,76 @@ class Quilt(object):
 		self.tile_constraints = np.zeros((self.grid_h, self.grid_w, 4, 3))-1
 
 
-p = Quilt(grid_size=(9,9))
-p.define_tile_designs()
-p.add_quilt_edge_constraints([[["black","white"],"tblr"]])
-p.build_out_constrained_quilt()
-p.name="quilt1"
-p.write_quilt()
-p.reset_quilt()
-p.add_quilt_edge_constraints([[["black","white"],"tblr"]])
-p.build_out_constrained_quilt()
-p.name="quilt2"
-p.write_quilt()
-p.reset_quilt()
-p.add_quilt_edge_constraints([[["black","white"],"tblr"]])
-p.build_out_constrained_quilt()
-p.name="quilt3"
-p.write_quilt()
+# # # # Create a sequence of images to post:
+def try_hard_to_make_tile(quilt, constraint_list, max_iters=1000):
+	quilt.reset_quilt()
+	iters = 0
+	while np.any(quilt.tile_ids<0):
+		quilt.reset_quilt()
+		quilt.add_quilt_edge_constraints(constraint_list)
+		quilt.build_out_constrained_quilt()
+		iters += 1
+		if max_iters<iters:
+			print "Sorry, we tried hard but could not make it work. Halting."
+			return quilt
+	return quilt
 
 
+p = Quilt(grid_size=(9,9), tile_size=(50,50))
+# p.define_tile_designs(color_set = ["LightGray","MediumSeaGreen","Violet"])
+p.define_tile_designs(color_set=["black","white"])
+try_hard_to_make_tile(p, constraint_list=[ [["white"],"rb"], [["white","black"],"tl"] ])
+p.write_quilt("quilt0")
+for i in range(1,3):
+	try_hard_to_make_tile(p, constraint_list=[ [["white"],"b"], [["white","black"],"tlr"] ])
+	p.write_quilt("quilt"+str(i))
+
+for i in range(3,6):
+	try_hard_to_make_tile(p, constraint_list=[ [["white","black"],"tlrb"] ])
+	p.write_quilt("quilt"+str(i))
+
+p.define_tile_designs(color_set=["black","white","yellow"])
+for i in range(6,9):
+	try_hard_to_make_tile(p, constraint_list=[ [["white","black"],"tlrb"] ])
+	p.write_quilt("quilt"+str(i))
+
+i=9
+try_hard_to_make_tile(p, constraint_list=[ [["white","black"],"rb"], [["white","yellow"],"lt"] ])
+p.write_quilt("quilt"+str(i))
+
+for i in range(10,12):
+	try_hard_to_make_tile(p, constraint_list=[ [["white","black"],"b"], [["white","yellow"],"lrt"] ])
+	p.write_quilt("quilt"+str(i))
+
+for i in range(12,18):
+	try_hard_to_make_tile(p, constraint_list=[ [["white","yellow"],"lrtb"] ])
+	p.write_quilt("quilt"+str(i))
+
+p.define_tile_designs(color_set=["yellow","white"])
+for i in range(18,24):
+	try_hard_to_make_tile(p, constraint_list=[ [["white","yellow"],"lrtb"] ])
+	p.write_quilt("quilt"+str(i))
+
+
+# Convert all the SVG files to PNGs
+
+import subprocess
+for i in range(24):
+	cmd = ['/usr/local/bin/convert',"-density","600","'quilt"+str(i)+".svg'","-resize","100%","'quilt"+str(i)+".jpg'"]
+	print " ".join(cmd)
+	# subprocess.call(cmd)
+
+
+
+p = Quilt(grid_size=(9,9), tile_size=(50,50))
+p.define_tile_designs(color_set=["yellow","white","LightSkyBlue"], tile_groups=["basic","1s"])
+
+
+p = Quilt(grid_size=(9,9), tile_size=(50,50))
+p.define_tile_designs(color_set=["LightSkyBlue","white","MidnightBlue"], tile_groups=["basic","solids"])
+for i in range(5):
+	try_hard_to_make_tile(p, constraint_list=[ [["white","LightSkyBlue"],"lrtb"] ])
+	p.write_quilt("wave"+str(i))
 
 # # # 5. Create bot to generate output and post to Instagram
 
