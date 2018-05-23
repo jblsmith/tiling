@@ -248,7 +248,7 @@ class Tile(object):
 	
 	def get_set_color(self, points, ellipses):
 		if not ellipses:
-			print "Empty tile, so assigning background color."
+			# print "Empty tile, so assigning background color."
 			return self.bg_color
 		point_tests = np.array([[self.check_if_point_in_ellipse(point, ellipse) for ellipse in self.ellipses] for point in points])
 		# Is every point in (or on the edge of) at least one ellipse?
@@ -298,9 +298,9 @@ class Tile(object):
 		self.imagine_tile_layout()
 		self.write_tile_layout()
 
-a = Tile(bg_color="white", fg_color="red", ellipses=[(-1,0,1.1,1), (1,0,1.1,1)], name="tmp")
-a.create_tile_image()
-a.get_ellipse_edge_colors()
+# a = Tile(bg_color="white", fg_color="red", ellipses=[(-1,0,1.1,1), (1,0,1.1,1)], name="tmp")
+# a.create_tile_image()
+# a.get_ellipse_edge_colors()
 
 
 # In order to handle a larger list of tile types, we create an Tile class to generate tiles and handle the logic of their edges.
@@ -329,15 +329,20 @@ class Quilt(object):
 		self.name = name
 		self.tile_ids = np.zeros((self.grid_h,self.grid_w)).astype(int)-1
 		self.tile_constraints = np.zeros((self.grid_h, self.grid_w, 4, 3))-1
+		self.tile_set = []
+		self.edge_colors = np.zeros((0,4,3))
 	
 	def make_quilt_path(self):
 		return self.local_save_dir + "/" + self.name + ".svg"
 	
-	def define_tile_designs(self, color_set = [["white","black","yellow"]], tile_groups=["basic","1s","2s","3s","solids"]):
+	def add_tile_designs(self, color_set = [["white","black","yellow"]], tile_groups=["basic","1s","2s","3s","solids"]):
 		# Original set of tiles
 		if len(color_set)==1:
-			fg_colors = color_set
-			bg_colors = color_set
+			for fg_color,bg_color in itertools.permutations(color_set[0], 2):
+				self.add_tile_designs(color_set=[[fg_color],[bg_color]], tile_groups=tile_groups)
+			return
+			# fg_colors = color_set[0]
+			# bg_colors = color_set[0]
 		elif len(color_set)==2:
 			fg_colors, bg_colors = color_set
 		elif len(color_set)>2:
@@ -373,9 +378,10 @@ class Quilt(object):
 				tile_set += [tmp_tile]
 			for tmp_tile in tile_set:
 				tmp_tile.create_tile_image()
-		self.tile_set = tile_set
+		self.tile_set += tile_set
 		# edge_colors[i,j,:] gives the RGB values for the color of the jth edge (clockwise from top) of the ith tile.
-		self.edge_colors = np.array([tmp_tile.get_ellipse_edge_colors() for tmp_tile in tile_set])
+		new_edge_colors = np.array([tmp_tile.get_ellipse_edge_colors() for tmp_tile in tile_set])
+		self.edge_colors = np.concatenate((self.edge_colors, new_edge_colors))
 	
 	def create_random_quilt(self):
 		self.tile_ids = np.random.randint(len(self.tile_set),size=self.tile_ids.shape)
@@ -520,7 +526,17 @@ for i in range(24):
 
 
 p = Quilt(grid_size=(9,9), tile_size=(50,50))
-p.define_tile_designs(color_set=["yellow","white","LightSkyBlue"], tile_groups=["basic","1s"])
+p.define_tile_designs(color_set=[["yellow"],["white"]], tile_groups=["basic","1s","solids"])
+for i in range(10,15):
+	try_hard_to_make_tile(p, constraint_list=[ [["white","yellow"],"lrtb"] ])
+	p.write_quilt("bubble"+str(i))
+
+p = Quilt(grid_size=(9,9), tile_size=(50,50))
+p.add_tile_designs(color_set=[["yellow","LightSkyBlue"],["white"]], tile_groups=["basic","1s","2s","3s"])
+p.add_tile_designs(color_set=[["yellow","LightSkyBlue"]], tile_groups=["basic","1s","2s","3s"])
+for i in range(20,25):
+	try_hard_to_make_tile(p, constraint_list=[ [["white","yellow"],"lrtb"] ])
+	p.write_quilt("bubble"+str(i))
 
 
 p = Quilt(grid_size=(9,9), tile_size=(50,50))
@@ -528,6 +544,13 @@ p.define_tile_designs(color_set=["LightSkyBlue","white","MidnightBlue"], tile_gr
 for i in range(5):
 	try_hard_to_make_tile(p, constraint_list=[ [["white","LightSkyBlue"],"lrtb"] ])
 	p.write_quilt("wave"+str(i))
+
+
+import subprocess
+for i in range(10,19):
+	cmd = ['/usr/local/bin/convert',"-density","600","'bubble"+str(i)+".svg'","-resize","100%","'bubble"+str(i)+".jpg'"]
+	print " ".join(cmd)
+	# subprocess.call(cmd)
 
 # # # 5. Create bot to generate output and post to Instagram
 
