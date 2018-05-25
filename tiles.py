@@ -336,6 +336,7 @@ class Quilt(object):
 		return self.local_save_dir + "/" + self.name + ".svg"
 	
 	def add_tile_designs(self, color_set = [["white","black","yellow"]], tile_groups=["basic","1s","2s","3s","solids"]):
+		import itertools
 		# Original set of tiles
 		if len(color_set)==1:
 			for fg_color,bg_color in itertools.permutations(color_set[0], 2):
@@ -347,7 +348,6 @@ class Quilt(object):
 			fg_colors, bg_colors = color_set
 		elif len(color_set)>2:
 			print "Error! Ill formatted color set."
-		import itertools
 		tile_set = []
 		if "solids" in tile_groups:
 			for bg_color in bg_colors:
@@ -478,48 +478,52 @@ def try_hard_to_make_tile(quilt, constraint_list, max_iters=1000):
 			return quilt
 	return quilt
 
+# TO DO:
+# Handle SVG -> PNG or JPG conversion 
+# Create tiles in a more logical way --- i.e., don't dumbly brute-force as in try_hard_to_make_tile
+# Create way to make constraint sequences to generate tiles according to concisely-stated paths.
 
 p = Quilt(grid_size=(9,9), tile_size=(50,50))
 # p.define_tile_designs(color_set = ["LightGray","MediumSeaGreen","Violet"])
 p.define_tile_designs(color_set=["black","white"])
 try_hard_to_make_tile(p, constraint_list=[ [["white"],"rb"], [["white","black"],"tl"] ])
-p.write_quilt("quilt0")
+p.write_quilt("quilts/quilt0")
 for i in range(1,3):
 	try_hard_to_make_tile(p, constraint_list=[ [["white"],"b"], [["white","black"],"tlr"] ])
-	p.write_quilt("quilt"+str(i))
+	p.write_quilt("quilts/quilt"+str(i))
 
 for i in range(3,6):
 	try_hard_to_make_tile(p, constraint_list=[ [["white","black"],"tlrb"] ])
-	p.write_quilt("quilt"+str(i))
+	p.write_quilt("quilts/quilt"+str(i))
 
 p.define_tile_designs(color_set=["black","white","yellow"])
 for i in range(6,9):
 	try_hard_to_make_tile(p, constraint_list=[ [["white","black"],"tlrb"] ])
-	p.write_quilt("quilt"+str(i))
+	p.write_quilt("quilts/quilt"+str(i))
 
 i=9
 try_hard_to_make_tile(p, constraint_list=[ [["white","black"],"rb"], [["white","yellow"],"lt"] ])
-p.write_quilt("quilt"+str(i))
+p.write_quilt("quilts/quilt"+str(i))
 
 for i in range(10,12):
 	try_hard_to_make_tile(p, constraint_list=[ [["white","black"],"b"], [["white","yellow"],"lrt"] ])
-	p.write_quilt("quilt"+str(i))
+	p.write_quilt("quilts/quilt"+str(i))
 
 for i in range(12,18):
 	try_hard_to_make_tile(p, constraint_list=[ [["white","yellow"],"lrtb"] ])
-	p.write_quilt("quilt"+str(i))
+	p.write_quilt("quilts/quilt"+str(i))
 
 p.define_tile_designs(color_set=["yellow","white"])
 for i in range(18,24):
 	try_hard_to_make_tile(p, constraint_list=[ [["white","yellow"],"lrtb"] ])
-	p.write_quilt("quilt"+str(i))
+	p.write_quilt("quilts/quilt"+str(i))
 
 
 # Convert all the SVG files to PNGs
 
 import subprocess
 for i in range(24):
-	cmd = ['/usr/local/bin/convert',"-density","600","'quilt"+str(i)+".svg'","-resize","100%","'quilt"+str(i)+".jpg'"]
+	cmd = ['/usr/local/bin/convert',"-density","600","'./quilts/quilt"+str(i)+".svg'","-resize","100%","'./quilts/quilt"+str(i)+".jpg'"]
 	print " ".join(cmd)
 	# subprocess.call(cmd)
 
@@ -529,28 +533,39 @@ p = Quilt(grid_size=(9,9), tile_size=(50,50))
 p.define_tile_designs(color_set=[["yellow"],["white"]], tile_groups=["basic","1s","solids"])
 for i in range(10,15):
 	try_hard_to_make_tile(p, constraint_list=[ [["white","yellow"],"lrtb"] ])
-	p.write_quilt("bubble"+str(i))
+	p.write_quilt("quilts/bubble"+str(i))
 
 p = Quilt(grid_size=(9,9), tile_size=(50,50))
-p.add_tile_designs(color_set=[["yellow","LightSkyBlue"],["white"]], tile_groups=["basic","1s","2s","3s"])
-p.add_tile_designs(color_set=[["yellow","LightSkyBlue"]], tile_groups=["basic","1s","2s","3s"])
+p.add_tile_designs(color_set=[["yellow","LightSkyBlue"],["white"]], tile_groups=["basic","1s","2s","3s","solids"])
+p.add_tile_designs(color_set=[["yellow","LightSkyBlue"]], tile_groups=["basic","1s","2s","3s","solids"])
 for i in range(20,25):
 	try_hard_to_make_tile(p, constraint_list=[ [["white","yellow"],"lrtb"] ])
-	p.write_quilt("bubble"+str(i))
+	p.write_quilt("quilts/bubble"+str(i))
 
 
 p = Quilt(grid_size=(9,9), tile_size=(50,50))
 p.define_tile_designs(color_set=["LightSkyBlue","white","MidnightBlue"], tile_groups=["basic","solids"])
 for i in range(5):
 	try_hard_to_make_tile(p, constraint_list=[ [["white","LightSkyBlue"],"lrtb"] ])
-	p.write_quilt("wave"+str(i))
+	p.write_quilt("quilts/wave"+str(i))
 
 
 import subprocess
-for i in range(10,19):
-	cmd = ['/usr/local/bin/convert',"-density","600","'bubble"+str(i)+".svg'","-resize","100%","'bubble"+str(i)+".jpg'"]
+for i in range(20,25):
+	cmd = ['/usr/local/bin/convert',"-density","600","'./quilts/bubble"+str(i)+".svg'","-resize","100%","'./quilts/bubble"+str(i)+".jpg'"]
 	print " ".join(cmd)
 	# subprocess.call(cmd)
 
-# # # 5. Create bot to generate output and post to Instagram
 
+# # # 6. Create bot to generate output and post to Instagram
+
+# Authenticate via OAuth
+key_file_text = open("./keys.txt").readlines()
+consumer_key, consumer_secret, oauth_token, oauth_secret = [line.split(", ")[1].strip('\n\'') for line in key_file_text]
+import pytumblr
+client = pytumblr.TumblrRestClient(consumer_key, consumer_secret, oauth_token, oauth_secret)
+
+client.create_photo("randomtiles", state="draft", tags=["testing", "ok"],
+                    data="/Users/jordan/Documents/repositories/tiling/bubble23.jpg")
+
+# "api.tumblr.com/v2/blog/randomtiles.tumblr.com/post"
