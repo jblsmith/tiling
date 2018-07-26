@@ -333,7 +333,7 @@ class Quilt(object):
 		self.edge_command = edge_command
 		self.reset_quilt()
 		# (Top, Right, Bottom, Left)
-	
+		
 	def reset_quilt(self):
 		self.tile_ids = np.zeros((self.grid_h,self.grid_w)).astype(int)-1
 		self.tile_constraints = np.zeros((self.grid_h, self.grid_w, 4, 3))-1
@@ -543,10 +543,12 @@ q.write_quilt()
 # 	return quilt
 
 
-# TO DO:
+
+# TODO:
 # Handle SVG -> PNG or JPG conversion 
 # Create tiles in a more logical way --- i.e., don't dumbly brute-force as in try_hard_to_make_tile
 # Create way to make constraint sequences to generate tiles according to concisely-stated paths.
+
 
 class QuiltSequence(object):
 	"""A sequence of Quilts, each of which is a random collection of Tiles.
@@ -558,16 +560,18 @@ class QuiltSequence(object):
 		tile_size: (width, height) of tiles, in pixels
 	"""
 	
-	def __init__(self, grid_size=(9,9), tile_size=(50, 50), name="tmp_qseq", bottom_edge_swatch=["white"], right_edge_swatch=["white"]):
+	def __init__(self, seed_quilt, name="tmp_qseq", n_columns=3):
+		# , grid_size=(9,9), tile_size=(50, 50), bottom_edge_swatch=["white"], right_edge_swatch=["white"]):
 		# , bg_colors=["white"], fg_colors=["blue","turquoise"], designs=["basic","solids"]):
 		self.local_save_dir = "."
-		self.n_columns = 3
+		self.n_columns = n_columns
 		self.name = name
-		self.grid_size = grid_size
-		self.tile_size = tile_size
-		self.bottom_edge_swatch = bottom_edge_swatch
-		self.right_edge_swatch = right_edge_swatch
-		self.quilt_sequence = []
+		# self.grid_size = grid_size
+		# self.tile_size = tile_size
+		# self.bottom_edge_swatch = bottom_edge_swatch
+		# self.right_edge_swatch = right_edge_swatch
+		self.quilt_sequence = [seed_quilt]
+		self.quilt_sequence[0].name = self.name+"0"
 		# self.bottom_edges = []
 		# self.right_edges = []
 		# self.n_quilts = -1
@@ -577,55 +581,136 @@ class QuiltSequence(object):
 		# self.designs = designs
 		# self.design_parameters =
 	
-	def setup_new_quilt(self, bg_colors=None, fg_colors=None, designs=None):
-		q = Quilt(grid_size = self.grid_size, tile_size=self.tile_size)
-		if bg_colors is None:
-			bg_colors = self.bg_colors
-		if fg_colors = None:
-			fg_colors = self.fg_colors
-		if designs is None:
-			designs = self.designs
-		q.add_tile_designs(color_set=[fg_colors,bg_colors], tile_groups=designs)
-		return q
+	def clone_last_quilt(self):
+		import copy
+		return copy.deepcopy(self.quilt_sequence[-1])
 	
-	def seed_quilt(self, left_edge_swatch=None, top_edge_swatch=None):
-		if len(self.quilt_sequence)>0:
-			print "Error! Quilt already started. Can't seed it again."
-			return
-		first_quilt = self.setup_new_quilt()
-		first_quilt.add_quilt_edge_constraints([ [self.bottom_edge_swatch,'b'], [self.right_edge_swatch,'r'] ])
-		if left_edge_swatch is None:
-			left_edge_swatch = self.right_edge_swatch
-		if top_edge_swatch is None:
-			top_edge_swatch = self.bottom_edge_swatch
-		first_quilt.add_quilt_edge_constraints([ [left_edge_swatch,'l'], [self.top_edge_swatch,'t'] ])
+	def extend_sequence(self, left_edge_swatch=[], top_edge_swatch=[], reps=1):
+		new_quilt = self.clone_last_quilt()
+		n = len(self.quilt_sequence)
+		# First, set right edge to be previous quilt's left edge, so they match.
+		new_quilt.edge_swatches['r'] = new_quilt.edge_swatches['l']
+		# If quilt is in bottom row, no need to update bottom edge constraint.
+		# If not, set it to lower_neighbour's top edge.
+		if n >= self.n_columns:
+			lower_neighbour = self.quilt_sequence[n-self.n_columns]
+			new_quilt.edge_swatches['b'] = new_quilt.edge_swatches['t']
+		if len(left_edge_swatch) > 0:
+			new_quilt.edge_swatches['l'] = left_edge_swatch
+		if len(top_edge_swatch) > 0:
+			new_quilt.edge_swatches['t'] = top_edge_swatch
+		# Write the nwe edge swatches into the quilt's edge_command:
+		new_quilt.edge_command = [new_quilt.edge_swatches[key] for key in ['t','r','b','l']]
+		new_quilt.name = self.name + str(len(self.quilt_sequence)+1)
+		self.quilt_sequence += [new_quilt]
+	
+	def implement(self):
+		for qi,q in enumerate(self.quilt_sequence):
+			print qi
+			# q = Quilt(grid_size=(9,9), tile_groups=["basic","solids","2s"], fg_colors=["blue","black"], edge_command=[["white","black"],["white","black"],["white","black"],["white","blue"]])
+			q.reset_quilt()
+			q.implement_edge_constraints()
+			q.build_out_constrained_quilt_harder()
+			q.write_quilt()
+
+# Pseudocode:
+# my_seq = QuiltSequence(grid_size=(9,9), tile_size=(50,50), name='my_quilt', bottom_edge_swatch=["white"], right_edge_swatch=["white"])
+
+seed_quilt = Quilt(grid_size=(9,9), tile_groups=["basic","2s"], fg_colors=["black"], edge_command=[["white","black"], ["white"], ["white"], ["white","black"]])
+my_seq = QuiltSequence(seed_quilt, name="tmp_qseq", n_columns=3)
+my_seq.extend_sequence(left_edge_swatch=['white','black'])
+for i in range(10):
+	my_seq.extend_sequence()
+	# my_seq.extend_sequence(left_edge_swatch=['white'])
+
+my_seq.implement()
+
+], top_edge_swatch=['white','black'])
+my_seq.extend_sequence()
+my_seq.extend_sequence()
+my_seq.extend_sequence()
+my_seq.extend_sequence(left_edge_swatch=['white','black','black'])
+my_seq.extend_sequence()
+my_seq.extend_sequence()
+
+
+
 		
-		else:
-			first_quilt.add_quilt_edge_constraints( [ [left_edge_swatch, 'l']])
-			
-		self.quilt_sequence += [self.new_quilt]
+	# def setup_new_quilt(self, bg_colors=None, fg_colors=None, designs=None):
+	#
+	# 	q = Quilt(grid_size = self.grid_size, tile_size=self.tile_size)
+	# 	if bg_colors is None:
+	# 		bg_colors = self.bg_colors
+	# 	if fg_colors is None:
+	# 		fg_colors = self.fg_colors
+	# 	if designs is None:
+	# 		designs = self.designs
+	# 	q.add_tile_designs(color_set=[fg_colors,bg_colors], tile_groups=designs)
+	# 	return q
+	
+	# def extend_sequence(self, left_edge_swatch=[], top_edge_swatch=[]):
+	# 	new_quilt = self.clone_last_quilt()
+	# 	n = len(self.quilt_sequence)
+	# 	if n < self.n_columns:
+	# 		# This quilt is in the bottom row, so we need to provide the bottom edge constraint.
+	# 		new_quilt.add_quilt_edge_constraints([ [self.bottom_edge_swatch,'b'] ])
+	# 	else:
+	# 		# We need the top edge of the tile beneath it to get our constraint.
+	# 		lower_neighbour = self.quilt_sequence[n-self.n_columns]
+	# 		# lower_neighbour is a Quilt object
+	# 		new_quilt.add_quilt_edge_constraints([ [lower_neighbour.edge_swatches['t'],'b'] ])
+	# 	if n == 0:
+	# 		# This is our first quilt, so we need to provide the right edge too.
+	# 		new_quilt.add_quilt_edge_constraints([ [self.right_edge_swatch,'l'] ])
+	# 	else:
+	# 		# We need the right edge of the tile to the right.
+	# 		right_neighbour = self.quilt_sequence[n-1]
+	# 		new_quilt.add_quilt_edge_constraints([ [right_neighbour.edge_swatches['l'],'r'] ])
+	# 	# That's bottom and left done. Now we do top and right:
+	# 	# Default behaviour: propagate edges.
+	# 	if len(left_edge_swatch) == 0:
+	# 		new_quilt.add_quilt_edge_constraints([ [new_quilt.edge_swatches['r'],'l'] ])
+	# 	else:
+	# 		new_quilt.add_quilt_edge_constraints([ [left_edge_swatch,'l'] ])
+	# 	if len(top_edge_swatch) == 0:
+	# 		new_quilt.add_quilt_edge_constraints([ [new_quilt.edge_swatches['b'],'t'] ])
+	# 	else:
+	# 		new_quilt.add_quilt_edge_constraints([ [top_edge_swatch,'l'] ])
+	## if len(self.quilt_sequence)==0:
+		# 	print "Error! Quilt already started. Can't seed it again."
+		# 	return
+		# first_quilt = self.setup_new_quilt()
+		# first_quilt.add_quilt_edge_constraints([ [self.bottom_edge_swatch,'b'], [self.right_edge_swatch,'r'] ])
+		# if left_edge_swatch is None:
+		# 	left_edge_swatch = self.right_edge_swatch
+		# if top_edge_swatch is None:
+		# 	top_edge_swatch = self.bottom_edge_swatch
+		# first_quilt.add_quilt_edge_constraints([ [left_edge_swatch,'l'], [self.top_edge_swatch,'t'] ])
+		#
+		# else:
+		# 	first_quilt.add_quilt_edge_constraints( [ [left_edge_swatch, 'l']])
+		# self.quilt_sequence += [new_quilt]
 		# Add new minimum constraints so that we can start a new quilt sequence from scratch.
-		for i in range(self.n_columns):
-			
-			
-		self.bottom_edges = [bottom_edge]*self.n_columns
-		self.right_edges = [right_edge]
-		
-		
-	def add_quilt(self, left_edge=None, top_edge=None):
-		# Add a new quilt to the sequence.
-		# The right and bottom edges of the new quilt will automatically match the quilt sequence so far.
-		# If no new top or left edge constraints are given, then the bottom and right edges (respectively) will be duplicated.
-		quilt_n = self.n_quilts + 1
-		if len(self.right_edges)>quilt_n:
-			right_edge = self.right_edges[quilt_n]
-		else:
-			return "ERROR... tried to add a quilt but there was no right edge constraint."
-		if left_edge is None:
-			right_edge = 
-		
-		
-	def duplicate_last_quilt(self):
+		# for i in range(self.n_columns):
+		#
+		#
+		# self.bottom_edges = [bottom_edge]*self.n_columns
+		# self.right_edges = [right_edge]
+				
+	# def add_quilt(self, left_edge=None, top_edge=None):
+	# 	# Add a new quilt to the sequence.
+	# 	# The right and bottom edges of the new quilt will automatically match the quilt sequence so far.
+	# 	# If no new top or left edge constraints are given, then the bottom and right edges (respectively) will be duplicated.
+	# 	quilt_n = self.n_quilts + 1
+	# 	if len(self.right_edges)>quilt_n:
+	# 		right_edge = self.right_edges[quilt_n]
+	# 	else:
+	# 		return "ERROR... tried to add a quilt but there was no right edge constraint."
+	# 	if left_edge is None:
+	# 		right_edge =
+	#
+	#
+	# def duplicate_last_quilt(self):
 	
 
 p = Quilt(grid_size=(9,9), tile_size=(50,50))
