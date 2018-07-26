@@ -211,7 +211,7 @@ class Tile(object):
 	"""
 	
 	def __init__(self, bg_color="white", fg_color="black", ellipses=[], name="tmp", tile_size=(100,100)):
-		self.local_save_dir = "/Users/jordan/Documents/repositories/tiling/tiles"
+		self.local_save_dir = "./quilts/tiles"
 		self.bg_color = webcolors.name_to_rgb(bg_color)
 		self.fg_color = webcolors.name_to_rgb(fg_color)
 		self.ellipses = ellipses
@@ -319,40 +319,70 @@ class Quilt(object):
 		name: Filename for saving.
 	"""
 	
-	def __init__(self, grid_size=(20,10), tile_size=(50, 50), bg_color="white", fg_color="black", name="tmp_quilt"):
-		self.local_save_dir = "/Users/jordan/Documents/repositories/tiling"
+	def __init__(self, grid_size=(20,10), tile_size=(50, 50), bg_colors=["white"], fg_colors=["black"], tile_groups=["basic","2s"], name="tmp_quilt", edge_command=None):
+		self.local_save_dir = "."
 		self.grid_w, self.grid_h = grid_size
 		self.tile_w, self.tile_h = tile_size
 		self.page_w, self.page_h = self.grid_w * self.tile_w, self.grid_h * self.tile_h
-		self.bg_color = webcolors.name_to_rgb(bg_color)
-		self.fg_color = webcolors.name_to_rgb(fg_color)
+		# self.bg_color = webcolors.name_to_rgb(bg_color)
+		# self.fg_color = webcolors.name_to_rgb(fg_color)
 		self.name = name
+		self.fg_colors = fg_colors
+		self.bg_colors = bg_colors
+		self.tile_groups = tile_groups
+		self.edge_command = edge_command
+		self.reset_quilt()
+		# (Top, Right, Bottom, Left)
+	
+	def reset_quilt(self):
 		self.tile_ids = np.zeros((self.grid_h,self.grid_w)).astype(int)-1
 		self.tile_constraints = np.zeros((self.grid_h, self.grid_w, 4, 3))-1
 		self.tile_set = []
-		self.edge_colors = np.zeros((0,4,3))
+		self.tile_edge_colors = np.zeros((0,4,3))
+		self.add_tile_designs()
+		self.set_edges()
+	
+	def set_edges(self):
+		if self.edge_command is None:
+			top=right=bottom=left=[self.bg_colors[0],self.fg_colors[0]]
+		else:
+			if len(self.edge_command)==1:
+				top=right=bottom=left=self.edge_command[0]
+			elif len(self.edge_command)==2:
+				top=bottom=self.edge_command[0]
+				right=left=self.edge_command[1]
+			elif len(self.edge_command)==4:
+				top,right,bottom,left = self.edge_command
+		self.edge_swatches = {"t":top,"r":right,"b":bottom,"l":left}
 	
 	def make_quilt_path(self):
 		return self.local_save_dir + "/" + self.name + ".svg"
 	
-	def add_tile_designs(self, color_set = [["white","black","yellow"]], tile_groups=["basic","1s","2s","3s","solids"]):
+	def add_tile_designs(self, fg_colors=None, bg_colors=None, tile_groups=None):
+		# ["basic","1s","2s","3s","solids"]):
+		if fg_colors is None:
+			fg_colors = self.fg_colors
+		if bg_colors is None:
+			bg_colors = self.bg_colors
+		if tile_groups is None:
+			tile_groups = self.tile_groups
 		import itertools
 		# Original set of tiles
-		if len(color_set)==1:
-			for fg_color,bg_color in itertools.permutations(color_set[0], 2):
-				self.add_tile_designs(color_set=[[fg_color],[bg_color]], tile_groups=tile_groups)
-			return
-			# fg_colors = color_set[0]
-			# bg_colors = color_set[0]
-		elif len(color_set)==2:
-			fg_colors, bg_colors = color_set
-		elif len(color_set)>2:
-			print "Error! Ill formatted color set."
+		# if len(color_set)==1:
+		# 	for fg_color,bg_color in itertools.permutations(color_set[0], 2):
+		# 		self.add_tile_designs(color_set=[[fg_color],[bg_color]], tile_groups=tile_groups)
+		# 	return
+		# 	# fg_colors = color_set[0]
+		# 	# bg_colors = color_set[0]
+		# elif len(color_set)==2:
+		# 	fg_colors, bg_colors = color_set
+		# elif len(color_set)>2:
+		# 	print "Error! Ill-formatted color set."
 		tile_set = []
 		if "solids" in tile_groups:
 			for bg_color in bg_colors:
-				tile_set += [Tile(bg_color=bg_color, fg_color=bg_color, ellipses=[], name=bg_color+"_solid")]		
-		color_combos = list(itertools.product(fg_colors, bg_colors))
+				tile_set += [Tile(bg_color=bg_color, fg_color=bg_color, ellipses=[], name=bg_color+"_solid")]
+		color_combos = list(itertools.product(fg_colors, bg_colors+fg_colors))
 		for fg_color,bg_color in color_combos:
 		# for fg_color,bg_color in itertools.permutations(color_set, 2):
 			name_stem = fg_color + "_on_" + bg_color + "_"
@@ -381,34 +411,50 @@ class Quilt(object):
 		self.tile_set += tile_set
 		# edge_colors[i,j,:] gives the RGB values for the color of the jth edge (clockwise from top) of the ith tile.
 		new_edge_colors = np.array([tmp_tile.get_ellipse_edge_colors() for tmp_tile in tile_set])
-		self.edge_colors = np.concatenate((self.edge_colors, new_edge_colors))
+		self.tile_edge_colors = np.concatenate((self.tile_edge_colors, new_edge_colors))
 	
 	def create_random_quilt(self):
 		self.tile_ids = np.random.randint(len(self.tile_set),size=self.tile_ids.shape)
 	
-	def add_quilt_edge_constraints(self, constraint_list = [[["black"],"tlbr"]]):
+	# def add_quilt_edge_constraints(self, constraint_list = [[["black"],"tlbr"]]):
+	def implement_edge_constraints(self):
+		for side in self.edge_swatches.keys():
+			if len(self.edge_swatches[side])>0:
+				tmp_cols = np.array([np.array(webcolors.name_to_rgb(color)) for color in self.edge_swatches[side]])
+				tmp_repmat = np.tile(tmp_cols,reps=(np.max((self.grid_h,self.grid_w)),1))
+				if side=="t":
+					# Along top row, top edge must be white:
+					self.tile_constraints[0,:,0,:] = tmp_repmat[:self.tile_constraints.shape[1],:]
+				if side=="l":
+					# Along left edge, left edge must be white:
+					self.tile_constraints[:,0,3,:] = tmp_repmat[:self.tile_constraints.shape[0],:]
+				if side=="b":
+					# Ditto for bottom and right:
+					self.tile_constraints[-1,:,2,:] = tmp_repmat[:self.tile_constraints.shape[1],:]
+				if side=="r":
+					self.tile_constraints[:,-1,1,:] = tmp_repmat[:self.tile_constraints.shape[0],:]		
 		# This is for defining constraints OUTSIDE the quilt --- i.e., what the quilt edges can possibly be.
 		# In order to control INTERNAL constraints --- i.e., how tiles can be arranged on the page --- look elsewhere.
 		# If a constraint triplet value is all -1s, it is unconstrained.
 		# If a constraint triplet is set, then that edge (top,right,bottom,left) is constrained to equal that value.
-		for constraint in constraint_list:
-			color_swatch = constraint[0]
-			sides = constraint[1]
-			# if "all" in sides:
-			# 	sides = ["top","right","bottom","left"]
-			tmp_cols = np.array([np.array(webcolors.name_to_rgb(color)) for color in color_swatch])
-			tmp_repmat = np.tile(tmp_cols,reps=(np.max((self.grid_h,self.grid_w)),1))
-			if "t" in sides:
-				# Along top row, top edge must be white:
-				self.tile_constraints[0,:,0,:] = tmp_repmat[:self.tile_constraints.shape[1],:]
-			if "l" in sides:
-				# Along left edge, left edge must be white:
-				self.tile_constraints[:,0,3,:] = tmp_repmat[:self.tile_constraints.shape[0],:]
-			if "b" in sides:
-				# Ditto for bottom and right:
-				self.tile_constraints[-1,:,2,:] = tmp_repmat[:self.tile_constraints.shape[1],:]
-			if "r" in sides:
-				self.tile_constraints[:,-1,1,:] = tmp_repmat[:self.tile_constraints.shape[0],:]
+		# for constraint in constraint_list:
+		# 	color_swatch = constraint[0]
+		# 	sides = constraint[1]
+		# 	# if "all" in sides:
+		# 	# 	sides = ["top","right","bottom","left"]
+		# 	tmp_cols = np.array([np.array(webcolors.name_to_rgb(color)) for color in color_swatch])
+		# 	tmp_repmat = np.tile(tmp_cols,reps=(np.max((self.grid_h,self.grid_w)),1))
+		# 	if "t" in sides:
+		# 		# Along top row, top edge must be white:
+		# 		self.tile_constraints[0,:,0,:] = tmp_repmat[:self.tile_constraints.shape[1],:]
+		# 	if "l" in sides:
+		# 		# Along left edge, left edge must be white:
+		# 		self.tile_constraints[:,0,3,:] = tmp_repmat[:self.tile_constraints.shape[0],:]
+		# 	if "b" in sides:
+		# 		# Ditto for bottom and right:
+		# 		self.tile_constraints[-1,:,2,:] = tmp_repmat[:self.tile_constraints.shape[1],:]
+		# 	if "r" in sides:
+		# 		self.tile_constraints[:,-1,1,:] = tmp_repmat[:self.tile_constraints.shape[0],:]
 		# self.tile_constraints = tile_constraints
 		# Set up a solid outside white border
 		# tile_ids[grid_w-1,:] = 3
@@ -423,8 +469,8 @@ class Quilt(object):
 				if self.tile_ids[i,j]<0:
 					current_constraints = self.tile_constraints[i,j]
 					if np.any(current_constraints>=0):
-						edge_matches = self.edge_colors==current_constraints
-						edge_irrelev = np.ones_like(self.edge_colors) * current_constraints<0
+						edge_matches = self.tile_edge_colors==current_constraints
+						edge_irrelev = np.ones_like(self.tile_edge_colors) * current_constraints<0
 						available_edges = [k for k in range(len(self.tile_set)) if np.all(edge_matches[k,:,:]+edge_irrelev[k,:,:])]
 					else:
 						available_edges = range(len(self.tile_set))
@@ -444,6 +490,21 @@ class Quilt(object):
 						if j>0:
 							self.tile_constraints[i,j-1,1,:] = self.tile_constraints[i,j,3,:]
 	
+	# Force build
+	def build_out_constrained_quilt_harder(self, max_iters=1000):
+		self.reset_quilt()
+		iters = 0
+		while np.any(self.tile_ids<0):
+			self.reset_quilt()
+			self.implement_edge_constraints()
+			# self.add_quilt_edge_constraints(constraint_list)
+			self.build_out_constrained_quilt()
+			iters += 1
+			if np.mod(iters,50)==49:
+				print iters+1
+			if max_iters<iters:
+				print "Sorry, we tried hard but could not make it work. Halting."
+	
 	def write_quilt(self, name=None):
 		if name:
 			self.name = name
@@ -458,30 +519,114 @@ class Quilt(object):
 				image.stretch()
 				dwg.add(image)
 		dwg.save()
-	
-	def reset_quilt(self):
-		self.tile_ids = np.zeros((self.grid_h,self.grid_w)).astype(int)-1
-		self.tile_constraints = np.zeros((self.grid_h, self.grid_w, 4, 3))-1
 
+
+# Example usage:
+q = Quilt(grid_size=(9,9), tile_groups=["basic","solids","2s"], fg_colors=["blue","black"], edge_command=[["white","black"],["white","black"],["white","black"],["white","blue"]])
+q.reset_quilt()
+q.implement_edge_constraints()
+q.build_out_constrained_quilt_harder()
+q.write_quilt()
 
 # # # # Create a sequence of images to post:
-def try_hard_to_make_tile(quilt, constraint_list, max_iters=1000):
-	quilt.reset_quilt()
-	iters = 0
-	while np.any(quilt.tile_ids<0):
-		quilt.reset_quilt()
-		quilt.add_quilt_edge_constraints(constraint_list)
-		quilt.build_out_constrained_quilt()
-		iters += 1
-		if max_iters<iters:
-			print "Sorry, we tried hard but could not make it work. Halting."
-			return quilt
-	return quilt
+# def try_hard_to_make_tile(quilt, constraint_list, max_iters=1000):
+# 	quilt.reset_quilt()
+# 	iters = 0
+# 	while np.any(quilt.tile_ids<0):
+# 		quilt.reset_quilt()
+# 		quilt.add_quilt_edge_constraints(constraint_list)
+# 		quilt.build_out_constrained_quilt()
+# 		iters += 1
+# 		if max_iters<iters:
+# 			print "Sorry, we tried hard but could not make it work. Halting."
+# 			return quilt
+# 	return quilt
+
 
 # TO DO:
 # Handle SVG -> PNG or JPG conversion 
 # Create tiles in a more logical way --- i.e., don't dumbly brute-force as in try_hard_to_make_tile
 # Create way to make constraint sequences to generate tiles according to concisely-stated paths.
+
+class QuiltSequence(object):
+	"""A sequence of Quilts, each of which is a random collection of Tiles.
+	
+	Attributes:
+		n_columns = 3 (assumed by default for Instagram-like three-column layout, but modifiable)
+		name: Filename for saving.
+		grid_size: (width, height) of grids, in number of tiles
+		tile_size: (width, height) of tiles, in pixels
+	"""
+	
+	def __init__(self, grid_size=(9,9), tile_size=(50, 50), name="tmp_qseq", bottom_edge_swatch=["white"], right_edge_swatch=["white"]):
+		# , bg_colors=["white"], fg_colors=["blue","turquoise"], designs=["basic","solids"]):
+		self.local_save_dir = "."
+		self.n_columns = 3
+		self.name = name
+		self.grid_size = grid_size
+		self.tile_size = tile_size
+		self.bottom_edge_swatch = bottom_edge_swatch
+		self.right_edge_swatch = right_edge_swatch
+		self.quilt_sequence = []
+		# self.bottom_edges = []
+		# self.right_edges = []
+		# self.n_quilts = -1
+		# 
+		# self.bg_colors = bg_colors
+		# self.fg_colors = fg_colors
+		# self.designs = designs
+		# self.design_parameters =
+	
+	def setup_new_quilt(self, bg_colors=None, fg_colors=None, designs=None):
+		q = Quilt(grid_size = self.grid_size, tile_size=self.tile_size)
+		if bg_colors is None:
+			bg_colors = self.bg_colors
+		if fg_colors = None:
+			fg_colors = self.fg_colors
+		if designs is None:
+			designs = self.designs
+		q.add_tile_designs(color_set=[fg_colors,bg_colors], tile_groups=designs)
+		return q
+	
+	def seed_quilt(self, left_edge_swatch=None, top_edge_swatch=None):
+		if len(self.quilt_sequence)>0:
+			print "Error! Quilt already started. Can't seed it again."
+			return
+		first_quilt = self.setup_new_quilt()
+		first_quilt.add_quilt_edge_constraints([ [self.bottom_edge_swatch,'b'], [self.right_edge_swatch,'r'] ])
+		if left_edge_swatch is None:
+			left_edge_swatch = self.right_edge_swatch
+		if top_edge_swatch is None:
+			top_edge_swatch = self.bottom_edge_swatch
+		first_quilt.add_quilt_edge_constraints([ [left_edge_swatch,'l'], [self.top_edge_swatch,'t'] ])
+		
+		else:
+			first_quilt.add_quilt_edge_constraints( [ [left_edge_swatch, 'l']])
+			
+		self.quilt_sequence += [self.new_quilt]
+		# Add new minimum constraints so that we can start a new quilt sequence from scratch.
+		for i in range(self.n_columns):
+			
+			
+		self.bottom_edges = [bottom_edge]*self.n_columns
+		self.right_edges = [right_edge]
+		
+		
+	def add_quilt(self, left_edge=None, top_edge=None):
+		# Add a new quilt to the sequence.
+		# The right and bottom edges of the new quilt will automatically match the quilt sequence so far.
+		# If no new top or left edge constraints are given, then the bottom and right edges (respectively) will be duplicated.
+		quilt_n = self.n_quilts + 1
+		if len(self.right_edges)>quilt_n:
+			right_edge = self.right_edges[quilt_n]
+		else:
+			return "ERROR... tried to add a quilt but there was no right edge constraint."
+		if left_edge is None:
+			right_edge = 
+		
+		
+	def duplicate_last_quilt(self):
+	
 
 p = Quilt(grid_size=(9,9), tile_size=(50,50))
 # p.define_tile_designs(color_set = ["LightGray","MediumSeaGreen","Violet"])
@@ -544,15 +689,14 @@ for i in range(20,25):
 
 
 p = Quilt(grid_size=(9,9), tile_size=(50,50))
-p.define_tile_designs(color_set=["LightSkyBlue","white","MidnightBlue"], tile_groups=["basic","solids"])
-for i in range(5):
+p.add_tile_designs(color_set=[["LightSkyBlue","MidnightBlue"],["white"]], tile_groups=["basic","solids"])
+for i in range(5,10):
 	try_hard_to_make_tile(p, constraint_list=[ [["white","LightSkyBlue"],"lrtb"] ])
 	p.write_quilt("quilts/wave"+str(i))
 
-
 import subprocess
-for i in range(20,25):
-	cmd = ['/usr/local/bin/convert',"-density","600","'./quilts/bubble"+str(i)+".svg'","-resize","100%","'./quilts/bubble"+str(i)+".jpg'"]
+for i in range(5,10):
+	cmd = ['/usr/local/bin/convert',"-density","600","'./quilts/wave"+str(i)+".svg'","-resize","100%","'./quilts/wave"+str(i)+".jpg'"]
 	print " ".join(cmd)
 	# subprocess.call(cmd)
 
@@ -566,6 +710,6 @@ import pytumblr
 client = pytumblr.TumblrRestClient(consumer_key, consumer_secret, oauth_token, oauth_secret)
 
 client.create_photo("randomtiles", state="draft", tags=["testing", "ok"],
-                    data="/Users/jordan/Documents/repositories/tiling/bubble23.jpg")
+                    data="./bubble23.jpg")
 
 # "api.tumblr.com/v2/blog/randomtiles.tumblr.com/post"
