@@ -194,6 +194,7 @@ for bg_color_name in ['b','w']:
 import webcolors
 from xml.etree import ElementTree as et
 import numpy as np
+import os
 
 class Tile(object):
 	"""A tile, defined by a set of ellipse parameters and a background color.
@@ -217,9 +218,12 @@ class Tile(object):
 		self.ellipses = ellipses
 		self.name = name
 		self.tile_size = tile_size
+	
+	def __repr__(self):
+		return "<Background:%s Foreground:%s Name:%s Size:%s>" % (webcolors.rgb_to_name(self.bg_color), webcolors.rgb_to_name(self.fg_color), self.name, self.tile_size)
 		
 	def make_tile_path(self):
-		return self.local_save_dir + "/" + self.name + ".svg"
+		return self.local_save_dir + "/" + self.name + "_" + str(self.tile_size[0]) + ".svg"
 	
 	def get_canvas_coords(self, single_ellipse_coords):
 		cx, cy, rx, ry = single_ellipse_coords
@@ -294,9 +298,10 @@ class Tile(object):
 		f.write(et.tostring(self.doc))
 		f.close()
 	
-	def create_tile_image(self):
-		self.imagine_tile_layout()
-		self.write_tile_layout()
+	def create_tile_image(self, overwrite=False):
+		if (not os.path.exists(self.make_tile_path())) or (overwrite==True):
+			self.imagine_tile_layout()
+			self.write_tile_layout()
 
 # a = Tile(bg_color="white", fg_color="red", ellipses=[(-1,0,1.1,1), (1,0,1.1,1)], name="tmp")
 # a.create_tile_image()
@@ -333,6 +338,9 @@ class Quilt(object):
 		self.edge_command = edge_command
 		self.reset_quilt()
 		# (Top, Right, Bottom, Left)
+	
+	def __repr__(self):
+		return "<Background:%s Foreground:%s Tiles:%s Edges:%s>" % (self.bg_colors, self.fg_colors, self.tile_groups, self.edge_command)
 		
 	def reset_quilt(self):
 		self.tile_ids = np.zeros((self.grid_h,self.grid_w)).astype(int)-1
@@ -384,28 +392,31 @@ class Quilt(object):
 				tile_set += [Tile(bg_color=bg_color, fg_color=bg_color, ellipses=[], name=bg_color+"_solid")]
 		color_combos = list(itertools.product(fg_colors, bg_colors+fg_colors))
 		for fg_color,bg_color in color_combos:
-		# for fg_color,bg_color in itertools.permutations(color_set, 2):
-			name_stem = fg_color + "_on_" + bg_color + "_"
-			if "basic" in tile_groups:
-				labels = ['ne','nw','sw','se']
-				center_y = np.array([1-2*(label[0]=="s") for label in labels])
-				center_x = np.array([2*(label[1]=="e")-1 for label in labels])
+			if fg_color==bg_color:
+				tile_set += [Tile(bg_color=bg_color, fg_color=bg_color, ellipses=[], name=bg_color+"_solid")]
+			else:
+			# for fg_color,bg_color in itertools.permutations(color_set, 2):
+				name_stem = fg_color + "_on_" + bg_color + "_"
+				if "basic" in tile_groups:
+					labels = ['ne','nw','sw','se']
+					center_y = np.array([1-2*(label[0]=="s") for label in labels])
+					center_x = np.array([2*(label[1]=="e")-1 for label in labels])
+					for i,label in enumerate(labels):
+						tile_set += [Tile(bg_color=bg_color, fg_color=fg_color, ellipses=[(center_x[i],center_y[i],2,2)], name=name_stem+label)]
+				labels = []
+				if "1s" in tile_groups:
+					labels += ['n','e','s','w']
+				if "2s" in tile_groups:
+					labels += ['ns','ew']
+				if "3s" in tile_groups:
+					labels += ['nes','new','nsw','esw']
+				circle_coords = {'n': [0,-1], 'e': [1,0], 's': [0,1], 'w':[-1,0], 'x':[3,3]}
+				# canvas_coords = {key:[0,0] for key in circle_coords.keys()}
 				for i,label in enumerate(labels):
-					tile_set += [Tile(bg_color=bg_color, fg_color=fg_color, ellipses=[(center_x[i],center_y[i],2,2)], name=name_stem+label)]
-			labels = []
-			if "1s" in tile_groups:
-				labels += ['n','e','s','w']
-			if "2s" in tile_groups:
-				labels += ['ns','ew']
-			if "3s" in tile_groups:
-				labels += ['nes','new','nsw','esw']
-			circle_coords = {'n': [0,-1], 'e': [1,0], 's': [0,1], 'w':[-1,0], 'x':[3,3]}
-			# canvas_coords = {key:[0,0] for key in circle_coords.keys()}
-			for i,label in enumerate(labels):
-				tmp_tile = Tile(bg_color=bg_color, fg_color=fg_color, ellipses=[], name=name_stem+label)
-				for letter in label:
-					tmp_tile.ellipses += [(circle_coords[letter][0],circle_coords[letter][1],1,1)]
-				tile_set += [tmp_tile]
+					tmp_tile = Tile(bg_color=bg_color, fg_color=fg_color, ellipses=[], name=name_stem+label)
+					for letter in label:
+						tmp_tile.ellipses += [(circle_coords[letter][0],circle_coords[letter][1],1,1)]
+					tile_set += [tmp_tile]
 			for tmp_tile in tile_set:
 				tmp_tile.create_tile_image()
 		self.tile_set += tile_set
@@ -475,7 +486,9 @@ class Quilt(object):
 					else:
 						available_edges = range(len(self.tile_set))
 					if len(available_edges)==0:
-						print "No options, reached a logical impasse."
+						# print "No options, reached a logical impasse."
+						edge_colors = [webcolors.rgb_to_name(list(int(j) for j in color)) for color in current_constraints]
+						print "No tiles match: " + "/".join(edge_colors)
 					else:
 						tile_id = available_edges[np.random.randint(len(available_edges))]
 						self.tile_ids[i,j] = tile_id
@@ -504,6 +517,7 @@ class Quilt(object):
 				print iters+1
 			if max_iters<iters:
 				print "Sorry, we tried hard but could not make it work. Halting."
+				return
 	
 	def write_quilt(self, name=None):
 		if name:
@@ -549,7 +563,6 @@ q.write_quilt()
 # Create tiles in a more logical way --- i.e., don't dumbly brute-force as in try_hard_to_make_tile
 # Create way to make constraint sequences to generate tiles according to concisely-stated paths.
 
-
 class QuiltSequence(object):
 	"""A sequence of Quilts, each of which is a random collection of Tiles.
 	
@@ -561,48 +574,52 @@ class QuiltSequence(object):
 	"""
 	
 	def __init__(self, seed_quilt, name="tmp_qseq", n_columns=3):
-		# , grid_size=(9,9), tile_size=(50, 50), bottom_edge_swatch=["white"], right_edge_swatch=["white"]):
-		# , bg_colors=["white"], fg_colors=["blue","turquoise"], designs=["basic","solids"]):
 		self.local_save_dir = "."
 		self.n_columns = n_columns
 		self.name = name
-		# self.grid_size = grid_size
-		# self.tile_size = tile_size
-		# self.bottom_edge_swatch = bottom_edge_swatch
-		# self.right_edge_swatch = right_edge_swatch
 		self.quilt_sequence = [seed_quilt]
 		self.quilt_sequence[0].name = self.name+"0"
-		# self.bottom_edges = []
-		# self.right_edges = []
-		# self.n_quilts = -1
-		# 
-		# self.bg_colors = bg_colors
-		# self.fg_colors = fg_colors
-		# self.designs = designs
-		# self.design_parameters =
+		self.qs=self.quilt_sequence
 	
 	def clone_last_quilt(self):
 		import copy
 		return copy.deepcopy(self.quilt_sequence[-1])
 	
-	def extend_sequence(self, left_edge_swatch=[], top_edge_swatch=[], reps=1):
-		new_quilt = self.clone_last_quilt()
-		n = len(self.quilt_sequence)
-		# First, set right edge to be previous quilt's left edge, so they match.
-		new_quilt.edge_swatches['r'] = new_quilt.edge_swatches['l']
-		# If quilt is in bottom row, no need to update bottom edge constraint.
-		# If not, set it to lower_neighbour's top edge.
-		if n >= self.n_columns:
-			lower_neighbour = self.quilt_sequence[n-self.n_columns]
-			new_quilt.edge_swatches['b'] = new_quilt.edge_swatches['t']
-		if len(left_edge_swatch) > 0:
-			new_quilt.edge_swatches['l'] = left_edge_swatch
-		if len(top_edge_swatch) > 0:
-			new_quilt.edge_swatches['t'] = top_edge_swatch
-		# Write the nwe edge swatches into the quilt's edge_command:
-		new_quilt.edge_command = [new_quilt.edge_swatches[key] for key in ['t','r','b','l']]
-		new_quilt.name = self.name + str(len(self.quilt_sequence)+1)
-		self.quilt_sequence += [new_quilt]
+	def extend_sequence(self, left_edge_swatch=[], top_edge_swatch=[], reps=1, tile_groups=[], fg_colors=[], bg_colors=[]):
+		if reps>1:
+			for i in range(reps):
+				self.extend_sequence(left_edge_swatch=left_edge_swatch, top_edge_swatch=top_edge_swatch, reps=1, tile_groups=tile_groups, fg_colors=fg_colors, bg_colors=bg_colors)
+			return
+		else:
+			new_quilt = self.clone_last_quilt()
+			n = len(self.quilt_sequence)
+			#
+			# Set new quilt edges
+			#
+			# First, set right edge to be previous quilt's left edge, so they match.
+			new_quilt.edge_swatches['r'] = new_quilt.edge_swatches['l']
+			# If quilt is in bottom row, no need to update bottom edge constraint.
+			# If not, set it to lower_neighbour's top edge.
+			if n >= self.n_columns:
+				lower_neighbour = self.quilt_sequence[n-self.n_columns]
+				new_quilt.edge_swatches['b'] = new_quilt.edge_swatches['t']
+			if len(left_edge_swatch) > 0:
+				new_quilt.edge_swatches['l'] = left_edge_swatch
+			if len(top_edge_swatch) > 0:
+				new_quilt.edge_swatches['t'] = top_edge_swatch
+			# Write the nwe edge swatches into the quilt's edge_command:
+			new_quilt.edge_command = [new_quilt.edge_swatches[key] for key in ['t','r','b','l']]
+			#
+			# Set other quilt properties
+			#
+			new_quilt.name = self.name + str(len(self.quilt_sequence))
+			if  len(tile_groups)>0:
+				new_quilt.tile_groups = tile_groups
+			if  len(fg_colors)>0:
+				new_quilt.fg_colors = fg_colors
+			if  len(bg_colors)>0:
+				new_quilt.bg_colors = bg_colors
+			self.quilt_sequence += [new_quilt]
 	
 	def implement(self):
 		for qi,q in enumerate(self.quilt_sequence):
@@ -616,22 +633,27 @@ class QuiltSequence(object):
 # Pseudocode:
 # my_seq = QuiltSequence(grid_size=(9,9), tile_size=(50,50), name='my_quilt', bottom_edge_swatch=["white"], right_edge_swatch=["white"])
 
-seed_quilt = Quilt(grid_size=(9,9), tile_groups=["basic","2s"], fg_colors=["black"], edge_command=[["white","black"], ["white"], ["white"], ["white","black"]])
+seed_quilt = Quilt(grid_size=(9,9), tile_groups=["basic","solids","1s""2s","3s"], fg_colors=["black"], edge_command=[["white","black"], ["white"], ["white"], ["white","black"]])
 my_seq = QuiltSequence(seed_quilt, name="tmp_qseq", n_columns=3)
 my_seq.extend_sequence(left_edge_swatch=['white','black'])
-for i in range(10):
-	my_seq.extend_sequence()
+for i in range(1,5):
+	my_seq.extend_sequence(left_edge_swatch=["white"]*i+["black"])
 	# my_seq.extend_sequence(left_edge_swatch=['white'])
 
 my_seq.implement()
 
-], top_edge_swatch=['white','black'])
-my_seq.extend_sequence()
-my_seq.extend_sequence()
-my_seq.extend_sequence()
-my_seq.extend_sequence(left_edge_swatch=['white','black','black'])
-my_seq.extend_sequence()
-my_seq.extend_sequence()
+
+
+seed_quilt = Quilt(grid_size=(9,9), tile_groups=["basic","solids","1s""2s","3s"], fg_colors=["black"],  bg_colors=["white"], edge_command=[["white","black"]])
+my_seq = QuiltSequence(seed_quilt, name="rainbow", n_columns=3)
+# my_seq.implement()
+for i in range(1):
+	my_seq.extend_sequence(left_edge_swatch=["white","yellow"], fg_colors=["black","yellow"])
+	my_seq.extend_sequence(left_edge_swatch=["white","aqua"], fg_colors=["black","yellow","aqua"])
+	my_seq.extend_sequence(left_edge_swatch=["white","magenta"], fg_colors=["black","aqua","magenta"])
+	my_seq.extend_sequence(left_edge_swatch=["white","black"], fg_colors=["magenta","black"])
+
+my_seq.implement()
 
 
 
