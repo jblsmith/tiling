@@ -503,21 +503,69 @@ class Quilt(object):
 						if j>0:
 							self.tile_constraints[i,j-1,1,:] = self.tile_constraints[i,j,3,:]
 	
+	def build_out_constrained_quilt_with_reverse_steps(self, lookback_depth=1):
+		coords = [x[0] for x in zip(itertools.product(range(self.grid_h),range(self.grid_w)))]
+		fail_counts = np.zeros(len(coords))
+		coord_i = 0
+		while coord_i < len(coords):
+			i,j = coords[coord_i]
+			if self.tile_ids[i,j]>=0:
+				coord_i += 1
+			else:
+				current_constraints = self.tile_constraints[i,j]
+				if np.any(current_constraints>=0):
+					edge_matches = self.tile_edge_colors==current_constraints
+					edge_irrelev = np.ones_like(self.tile_edge_colors) * current_constraints<0
+					available_edges = [k for k in range(len(self.tile_set)) if np.all(edge_matches[k,:,:]+edge_irrelev[k,:,:])]
+				else:
+					available_edges = range(len(self.tile_set))
+				if len(available_edges)==0:
+					fail_counts[coord_i] += 1
+					if fail_counts[coord_i]>50:
+						print "Failing hard on step " + str(coords[coord_i]) + ". Giving up [this iteration]."
+						return
+					# FAILURE: iterate back one.
+					# print "No options, reached a logical impasse."
+					edge_colors = [webcolors.rgb_to_name(list(int(j) for j in color)) for color in current_constraints]
+					print "No tiles match: " + "/".join(edge_colors)
+					if coord_i == 0:
+						print "Infeasible from the outset."
+						return
+					else:
+						coord_i -= 1
+						i,j = coords[coord_i]
+						self.tile_ids[i,j] = -1
+				else:
+					# SUCCESS: pick a tile and move on.
+					tile_id = available_edges[np.random.randint(len(available_edges))]
+					self.tile_ids[i,j] = tile_id
+					self.tile_constraints[i,j,:,:] = np.array(self.tile_set[tile_id].get_ellipse_edge_colors())
+					# Now, tell neighbouring unset cells to have the correct edge colors.
+					if i<self.grid_h-1:
+						self.tile_constraints[i+1,j,0,:] = self.tile_constraints[i,j,2,:]
+					if j<self.grid_w-1:
+						self.tile_constraints[i,j+1,3,:] = self.tile_constraints[i,j,1,:]
+					if i>0:
+						self.tile_constraints[i-1,j,2,:] = self.tile_constraints[i,j,0,:]
+					if j>0:
+						self.tile_constraints[i,j-1,1,:] = self.tile_constraints[i,j,3,:]
+	
 	# Force build
-	def build_out_constrained_quilt_harder(self, max_iters=1000):
+	def build_out_constrained_quilt_harder(self, max_iters=50):
 		self.reset_quilt()
 		iters = 0
 		while np.any(self.tile_ids<0):
 			self.reset_quilt()
 			self.implement_edge_constraints()
 			# self.add_quilt_edge_constraints(constraint_list)
-			self.build_out_constrained_quilt()
+			self.build_out_constrained_quilt_with_reverse_steps()
 			iters += 1
 			if np.mod(iters,50)==49:
 				print iters+1
 			if max_iters<iters:
 				print "Sorry, we tried hard but could not make it work. Halting."
-				return
+				return False
+		return True
 	
 	def write_quilt(self, name=None):
 		if name:
@@ -539,8 +587,9 @@ class Quilt(object):
 q = Quilt(grid_size=(9,9), tile_groups=["basic","solids","2s"], fg_colors=["blue","black"], edge_command=[["white","black"],["white","black"],["white","black"],["white","blue"]])
 q.reset_quilt()
 q.implement_edge_constraints()
-q.build_out_constrained_quilt_harder()
-q.write_quilt()
+flag = q.build_out_constrained_quilt_harder()
+if flag:
+	q.write_quilt()
 
 # # # # Create a sequence of images to post:
 # def try_hard_to_make_tile(quilt, constraint_list, max_iters=1000):
@@ -627,13 +676,14 @@ class QuiltSequence(object):
 			# q = Quilt(grid_size=(9,9), tile_groups=["basic","solids","2s"], fg_colors=["blue","black"], edge_command=[["white","black"],["white","black"],["white","black"],["white","blue"]])
 			q.reset_quilt()
 			q.implement_edge_constraints()
-			q.build_out_constrained_quilt_harder()
-			q.write_quilt()
+			flag = q.build_out_constrained_quilt_harder()
+			if flag:
+				q.write_quilt()
 
 # Pseudocode:
 # my_seq = QuiltSequence(grid_size=(9,9), tile_size=(50,50), name='my_quilt', bottom_edge_swatch=["white"], right_edge_swatch=["white"])
 
-seed_quilt = Quilt(grid_size=(9,9), tile_groups=["basic","solids","1s""2s","3s"], fg_colors=["black"], edge_command=[["white","black"], ["white"], ["white"], ["white","black"]])
+seed_quilt = Quilt(grid_size=(9,9), tile_groups=["basic","solids","1s","2s","3s"], fg_colors=["black"], edge_command=[["white","black"], ["white"], ["white"], ["white","black"]])
 my_seq = QuiltSequence(seed_quilt, name="tmp_qseq", n_columns=3)
 my_seq.extend_sequence(left_edge_swatch=['white','black'])
 for i in range(1,5):
@@ -644,7 +694,7 @@ my_seq.implement()
 
 
 
-seed_quilt = Quilt(grid_size=(9,9), tile_groups=["basic","solids","1s""2s","3s"], fg_colors=["black"],  bg_colors=["white"], edge_command=[["white","black"]])
+seed_quilt = Quilt(grid_size=(9,9), tile_groups=["basic","solids","1s","2s","3s"], fg_colors=["black"],  bg_colors=["white"], edge_command=[["white","black"]])
 my_seq = QuiltSequence(seed_quilt, name="rainbow", n_columns=3)
 # my_seq.implement()
 for i in range(1):
@@ -656,6 +706,36 @@ for i in range(1):
 my_seq.implement()
 
 
+def powerset(iterable):
+    "list(powerset([1,2,3])) --> [(), (1,), (2,), (3,), (1,2), (1,3), (2,3), (1,2,3)]"
+    s = list(iterable)
+    return itertools.chain.from_iterable(itertools.combinations(s, r) for r in range(len(s)+1))
+
+tile_group_opts = [x for x in powerset(["basic","1s","2s","3s"])][1:]
+seed_quilt = Quilt(grid_size=(9,9), tile_groups=tile_group_opts[0], fg_colors=["black"],  bg_colors=["white"], edge_command=[["white","black"]])
+my_seq = QuiltSequence(seed_quilt, name="b&w", n_columns=3)
+for tile_group in tile_group_opts[1:]:
+	my_seq.extend_sequence(tile_groups=tile_group)
+
+my_seq.implement()
+
+
+
+
+
+seed_quilt = Quilt(grid_size=(9,9), tile_groups=["3s","solids"], fg_colors=["black","white"],  bg_colors=["white","black"], edge_command=[["white","black"]])
+my_seq = QuiltSequence(seed_quilt, name="simple--", n_columns=3)
+my_seq.extend_sequence(reps=10)
+my_seq.implement()
+
+# my_seq.implement()
+for i in range(1):
+	my_seq.extend_sequence(left_edge_swatch=["white","yellow"], fg_colors=["black","yellow"])
+	my_seq.extend_sequence(left_edge_swatch=["white","aqua"], fg_colors=["black","yellow","aqua"])
+	my_seq.extend_sequence(left_edge_swatch=["white","magenta"], fg_colors=["black","aqua","magenta"])
+	my_seq.extend_sequence(left_edge_swatch=["white","black"], fg_colors=["magenta","black"])
+
+my_seq.implement()
 
 		
 	# def setup_new_quilt(self, bg_colors=None, fg_colors=None, designs=None):
