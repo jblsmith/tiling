@@ -11,8 +11,6 @@ class Tile(object):
 	Attributes:
 		bg_color: (Background color) Any web color name, default is "white".
 			default: "white"
-		fg_color: (Foreground color) Any web color name, default is "black".
-			default: "black"
 		tile_size: A tuple (width,height) giving the dimensions of the tile.
 			default: (100,100)
 		name: A codename for the tile. E.g., 'b_ne' for a black-background tile with an ellipse in the NE corner.
@@ -21,34 +19,68 @@ class Tile(object):
 
 		NOTE: the above four attributes are listed if you print the Tile.
 	
-		ellipses: A list of ellipse parameters, each a tuple (cx,cy,rx,ry), with:
+		ellipses: A list of ellipse parameters, each a tuple (cx,cy,rx,ry,color_rgb), with:
 			cx, cy: centre of the ellipse where the centre with respect to a square tile centred at (0,0) with width = 2;
 			rx, ry: horizontal and vertial 'radii' of the ellipse in the same coordinate system.
+			color_rgb: an rgb tuple of the ellipse color. Use webcolors.name_to_rgb to make an rgb tuple quickly.
 			default: [] (no ellipses)
-		ellipse_edge_colors: A method which returns a list of four colours giving the volour of the (top, right, bottom, left) edges of the tile as webcolors RGB tuples.
+		edge_colors: A list of four colours giving the volour of the (top, right, bottom, left) edges of the tile as webcolors RGB tuples.
 	"""
 	
-	def __init__(self, bg_color="white", fg_color="black", ellipses=[], name="tmp", tile_size=(100,100)):
+	def __init__(self, bg_color="white", ellipses=[], name="tmp", tile_size=(100,100)):
 		self.local_save_dir = home_directory + "quilts/tiles/"
 		self.bg_color = webcolors.name_to_rgb(bg_color)
-		self.fg_color = webcolors.name_to_rgb(fg_color)
+		# self.fg_color = webcolors.name_to_rgb(fg_color)
 		self.ellipses = ellipses
 		self.name = name
 		self.tile_size = tile_size
+		self.edge_colors = [self.bg_color]*4
+		self.imagine_tile_layout()
 	
 	def __repr__(self):
-		return "<Background:%s Foreground:%s Name:%s Size:%s>" % (webcolors.rgb_to_name(self.bg_color), webcolors.rgb_to_name(self.fg_color), self.name, self.tile_size)
+		return "<Background:%s Foreground:%s Name:%s Size:%s>" % (webcolors.rgb_to_name(self.bg_color), [self.ensure_name(ellipse[-1]) for ellipse in self.ellipses], self.name, self.tile_size)
 		
-	def make_tile_path(self):
-		return self.local_save_dir + self.name + "_" + str(self.tile_size[0]) + ".svg"
+	def imagine_tile_layout(self):
+		# Create blank canvas of appropriate size:
+		self.doc = et.Element('svg', width=str(self.tile_size[0]), height=str(self.tile_size[1]), version='1.1', xmlns='http://www.w3.org/2000/svg')
+		# Paint in the background rectangle:
+		bg_color_string = 'rgb({0}, {1}, {2})'.format(self.bg_color[0],self.bg_color[1],self.bg_color[2])
+		et.SubElement(self.doc, 'rect', width=str(self.tile_size[0]), height=str(self.tile_size[1]), fill=bg_color_string)
+		# , stroke=bg_color_string)
+		# self.doc[-1].set("stroke-width","2")
+		# Paint in the foreground circles:
+		for ellipse in self.ellipses:
+			cx, cy, rx, ry, color = self.get_canvas_coords(ellipse)
+			color_rgb = self.ensure_rgb(color)
+			color_string = 'rgb({0}, {1}, {2})'.format(color_rgb[0], color_rgb[1], color_rgb[2])
+			et.SubElement(self.doc, 'ellipse', cx=str(cx), cy=str(cy), rx=str(rx), ry=str(ry), fill=color_string)
+			# , stroke=fg_color_string)
+			# self.doc[-1].set("stroke-width","2")
+		# for i in range(len(self.doc)):
+		# 	for j in range(len(self.doc[i].keys())):
+		# 		if self.doc[i].keys()[j]=="stroke_width":
+		# 			self.doc[i].keys()[j]="stroke-width"
+		self.edge_colors = [self.ensure_rgb(self.get_edge_color(i)) for i in range(4)]
 	
 	def get_canvas_coords(self, single_ellipse_coords):
-		cx, cy, rx, ry = single_ellipse_coords
+		cx, cy, rx, ry, color = single_ellipse_coords
 		new_cx = (cx+1)/2.0*self.tile_size[0]
 		new_cy = (1-cy)/(2.0)*self.tile_size[1]
 		new_rx = rx/2.0*self.tile_size[0]
 		new_ry = ry/2.0*self.tile_size[1]
-		return [new_cx, new_cy, new_rx, new_ry]
+		return [new_cx, new_cy, new_rx, new_ry, color]
+	
+	def ensure_rgb(self, color):
+		if type(color) is str:
+			return webcolors.name_to_rgb(color)
+		else:
+			return color
+	
+	def ensure_name(self, color):
+		if type(color) is str:
+			return color
+		else:
+			return webcolors.rgb_to_name(color)
 	
 	def ellipse_edge_colors(self):
 		# For each edge, check a few points along the edges and verify that all of them or none of them are in any ellipses.
@@ -57,55 +89,56 @@ class Tile(object):
 		rig_points = [(1,x) for x in point_range]
 		bot_points = [(x,-1) for x in point_range]
 		lef_points = [(-1,x) for x in point_range]
-		colors = [self.get_set_color(point_set,self.ellipses) for point_set in [top_points, rig_points, bot_points, lef_points]]
+		colors = [self.get_set_color(point_set) for point_set in [top_points, rig_points, bot_points, lef_points]]
 		return colors
 	
 	def check_if_point_in_ellipse(self, point, ellipse):
 		# A point (x,y) is in an ellipse if (x-cx)^2/a^2 + (y-cy)^2/b^2 < 1,
 		# where the ellipse has width a, height b, and its centre is located at (cx,cy).
 		x,y = point
-		cx,cy,a,b = ellipse
+		cx,cy,a,b,color = ellipse
 		return (np.power(x-cx,2)/np.power(a,2) + np.power(y-cy,2)/np.power(b,2))
 	
-	def get_set_color(self, points, ellipses):
-		if not ellipses:
-			# print "Empty tile, so assigning background color."
-			return self.bg_color
-		point_tests = np.array([[self.check_if_point_in_ellipse(point, ellipse) for ellipse in self.ellipses] for point in points])
-		# Is every point in (or on the edge of) at least one ellipse?
-		test_inclusion = np.all([np.min(test_result) <= 1 for test_result in point_tests])
-		# Is every point outside (but possibly touching) ALL of the ellipses?
-		test_exclusion = np.all([np.min(test_result) >= 1 for test_result in point_tests])
-		if (test_inclusion and test_exclusion):
-			print "Cannot decide on colour for one edge, since all points in test set are tangent to ellipses. Assigning background colour."
-			return self.bg_color
-		elif test_inclusion:
-			return self.fg_color
-		elif test_exclusion:
-			return self.bg_color
-		elif (not test_inclusion and not test_exclusion):
-			print "Cannot decide on colour for one edge, since it fails exclusion and inclusion tests. Assigning background colour."
-			return self.bg_color
+	def get_edge_color(self, edge_index):
+		point_range = np.linspace(-1,1,3)
+		if edge_index==0: # top
+			points = [(x,1) for x in point_range]
+		elif edge_index==1: # right
+			points = [(1,x) for x in point_range]
+		elif edge_index==2: # bottom
+			points = [(x,-1) for x in point_range]
+		elif edge_index==3: # left
+			points = [(-1,x) for x in point_range]
+		# For starters, assume edge has background color.
+		set_color = self.bg_color
+		for ellipse in self.ellipses:
+			point_tests = np.array([self.check_if_point_in_ellipse(point, ellipse) for point in points])
+			all_in = np.all(point_tests <= 1)
+			all_out = np.all(point_tests >= 1)
+			# print point_tests, all_in, all_out
+			if all_in:
+				set_color = ellipse[4]
+		return set_color
+		# point_tests = np.array([[self.check_if_point_in_ellipse(point, ellipse) for ellipse in self.ellipses] for point in points])
+		# # Is every point in (or on the edge of) at least one ellipse?
+		# test_inclusion = np.all([np.min(test_result) <= 1 for test_result in point_tests])
+		# # Is every point outside (but possibly touching) ALL of the ellipses?
+		# test_exclusion = np.all([np.min(test_result) >= 1 for test_result in point_tests])
+		# if (test_inclusion and test_exclusion):
+		# 	print "Cannot decide on colour for one edge, since all points in test set are tangent to ellipses. Assigning background colour."
+		# 	return self.bg_color
+		# elif test_inclusion:
+		# 	return self.fg_color
+		# elif test_exclusion:
+		# 	return self.bg_color
+		# elif (not test_inclusion and not test_exclusion):
+		# 	print "Cannot decide on colour for one edge, since it fails exclusion and inclusion tests. Assigning background colour."
+		# 	return self.bg_color
 	
-	def imagine_tile_layout(self):
-		# Create blank canvas of appropriate size:
-		self.doc = et.Element('svg', width=str(self.tile_size[0]), height=str(self.tile_size[1]), version='1.1', xmlns='http://www.w3.org/2000/svg')
-		# Paint in the background rectangle:
-		bg_color_string = 'rgb({0}, {1}, {2})'.format(self.bg_color[0],self.bg_color[1],self.bg_color[2])
-		fg_color_string = 'rgb({0}, {1}, {2})'.format(self.fg_color[0],self.fg_color[1],self.fg_color[2])
-		et.SubElement(self.doc, 'rect', width=str(self.tile_size[0]), height=str(self.tile_size[1]), fill=bg_color_string)
-		# , stroke=bg_color_string)
-		# self.doc[-1].set("stroke-width","2")
-		# Paint in the foreground circles:
-		for single_ellipse_coords in self.ellipses:
-			[cx, cy, rx, ry] = self.get_canvas_coords(single_ellipse_coords)
-			et.SubElement(self.doc, 'ellipse', cx=str(cx), cy=str(cy), rx=str(rx), ry=str(ry), fill=fg_color_string)
-			# , stroke=fg_color_string)
-			# self.doc[-1].set("stroke-width","2")
-		# for i in range(len(self.doc)):
-		# 	for j in range(len(self.doc[i].keys())):
-		# 		if self.doc[i].keys()[j]=="stroke_width":
-		# 			self.doc[i].keys()[j]="stroke-width"
+	def create_tile_image(self, overwrite=False):
+		if (not os.path.exists(self.make_tile_path())) or (overwrite==True):
+			self.imagine_tile_layout()
+			self.write_tile_layout()
 	
 	def write_tile_layout(self):
 		f = open(self.make_tile_path(), 'w')
@@ -115,10 +148,8 @@ class Tile(object):
 		f.write(et.tostring(self.doc))
 		f.close()
 	
-	def create_tile_image(self, overwrite=False):
-		if (not os.path.exists(self.make_tile_path())) or (overwrite==True):
-			self.imagine_tile_layout()
-			self.write_tile_layout()
+	def make_tile_path(self):
+		return self.local_save_dir + self.name + "_" + str(self.tile_size[0]) + ".svg"
 
 # Demo of the Tile object:
 # 
@@ -261,7 +292,7 @@ class Quilt(object):
 				tmp_tile.create_tile_image()
 		self.tile_set += tile_set
 		# edge_colors[i,j,:] gives the RGB values for the color of the jth edge (clockwise from top) of the ith tile.
-		new_edge_colors = np.array([tmp_tile.ellipse_edge_colors() for tmp_tile in tile_set])
+		new_edge_colors = np.array([tmp_tile.edge_colors for tmp_tile in tile_set])
 		self.tile_edge_colors = np.concatenate((self.tile_edge_colors, new_edge_colors))
 	
 	def create_random_quilt(self):
@@ -333,7 +364,7 @@ class Quilt(object):
 					else:
 						tile_id = available_edges[np.random.randint(len(available_edges))]
 						self.tile_ids[i,j] = tile_id
-						self.tile_constraints[i,j,:,:] = np.array(self.tile_set[tile_id].ellipse_edge_colors())
+						self.tile_constraints[i,j,:,:] = np.array(self.tile_set[tile_id].edge_colors)
 						# Now, tell neighbouring unset cells to have the correct edge colors.
 						if i<self.grid_h-1:
 							self.tile_constraints[i+1,j,0,:] = self.tile_constraints[i,j,2,:]
@@ -381,7 +412,7 @@ class Quilt(object):
 					# SUCCESS: pick a tile and move on.
 					tile_id = available_edges[np.random.randint(len(available_edges))]
 					self.tile_ids[i,j] = tile_id
-					self.tile_constraints[i,j,:,:] = np.array(self.tile_set[tile_id].ellipse_edge_colors())
+					self.tile_constraints[i,j,:,:] = np.array(self.tile_set[tile_id].edge_colors)
 					# Now, tell neighbouring unset cells to have the correct edge colors.
 					if i<self.grid_h-1:
 						self.tile_constraints[i+1,j,0,:] = self.tile_constraints[i,j,2,:]
