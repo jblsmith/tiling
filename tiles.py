@@ -24,7 +24,8 @@ class Tile(object):
 			rx, ry: horizontal and vertial 'radii' of the ellipse in the same coordinate system.
 			color_rgb: an rgb tuple of the ellipse color. Use webcolors.name_to_rgb to make an rgb tuple quickly.
 			default: [] (no ellipses)
-		edge_colors: A list of four colours giving the volour of the (top, right, bottom, left) edges of the tile as webcolors RGB tuples.
+		get_edge_color(): A method of for retrieving the color of an edge (top, right, bottom, or left) as a webcolors RGB tuple.
+		edge_color: A static list of edge colors, which is faster than calling get_edge_color() every time. But you have to be careful to imagine_tile_layout() to update edge_color when you add ellipses. The add_ellipses() function does this, so edit that instead of self.ellipses directly!
 	"""
 	
 	def __init__(self, bg_color="white", ellipses=[], name="tmp", tile_size=(100,100)):
@@ -39,7 +40,11 @@ class Tile(object):
 	
 	def __repr__(self):
 		return "<Background:%s Foreground:%s Name:%s Size:%s>" % (webcolors.rgb_to_name(self.bg_color), [self.ensure_name(ellipse[-1]) for ellipse in self.ellipses], self.name, self.tile_size)
-		
+	
+	def add_ellipses(self, ellipses):
+		self.ellipses += ellipses
+		self.imagine_tile_layout()
+	
 	def imagine_tile_layout(self):
 		# Create blank canvas of appropriate size:
 		self.doc = et.Element('svg', width=str(self.tile_size[0]), height=str(self.tile_size[1]), version='1.1', xmlns='http://www.w3.org/2000/svg')
@@ -99,15 +104,17 @@ class Tile(object):
 		cx,cy,a,b,color = ellipse
 		return (np.power(x-cx,2)/np.power(a,2) + np.power(y-cy,2)/np.power(b,2))
 	
-	def get_edge_color(self, edge_index):
+	def get_edge_color(self, edge_index=None):
+		if edge_index is None:
+			return [self.get_edge_color(i) for i in range(4)]
 		point_range = np.linspace(-1,1,3)
-		if edge_index==0: # top
+		if edge_index in [0,'t','top']:
 			points = [(x,1) for x in point_range]
-		elif edge_index==1: # right
+		elif edge_index in [1,'r','right']:
 			points = [(1,x) for x in point_range]
-		elif edge_index==2: # bottom
+		elif edge_index in [2,'b','bottom']:
 			points = [(x,-1) for x in point_range]
-		elif edge_index==3: # left
+		elif edge_index in [3,'l','left']:
 			points = [(-1,x) for x in point_range]
 		# For starters, assume edge has background color.
 		set_color = self.bg_color
@@ -259,7 +266,7 @@ class Quilt(object):
 		tile_set = []
 		if "solids" in tile_groups:
 			for bg_color in bg_colors:
-				tile_set += [Tile(bg_color=bg_color, fg_color=bg_color, ellipses=[], name=bg_color+"_solid")]
+				tile_set += [Tile(bg_color=bg_color, ellipses=[], name=bg_color+"_solid")]
 		color_combos = list(set(list(itertools.product(fg_colors, bg_colors+fg_colors))))
 		for fg_color,bg_color in color_combos:
 			# if fg_color==bg_color:
@@ -273,7 +280,7 @@ class Quilt(object):
 					center_y = np.array([1-2*(label[0]=="s") for label in labels])
 					center_x = np.array([2*(label[1]=="e")-1 for label in labels])
 					for i,label in enumerate(labels):
-						tile_set += [Tile(bg_color=bg_color, fg_color=fg_color, ellipses=[(center_x[i],center_y[i],2,2)], name=name_stem+label)]
+						tile_set += [Tile(bg_color=bg_color, ellipses=[(center_x[i],center_y[i],2,2,fg_color)], name=name_stem+label)]
 				labels = []
 				if "1s" in tile_groups:
 					labels += ['n','e','s','w']
@@ -284,9 +291,9 @@ class Quilt(object):
 				circle_coords = {'n': [0,-1], 'e': [1,0], 's': [0,1], 'w':[-1,0], 'x':[3,3]}
 				# canvas_coords = {key:[0,0] for key in circle_coords.keys()}
 				for i,label in enumerate(labels):
-					tmp_tile = Tile(bg_color=bg_color, fg_color=fg_color, ellipses=[], name=name_stem+label)
+					tmp_tile = Tile(bg_color=bg_color, ellipses=[], name=name_stem+label)
 					for letter in label:
-						tmp_tile.ellipses += [(circle_coords[letter][0],circle_coords[letter][1],1,1)]
+						tmp_tile.add_ellipses([(circle_coords[letter][0],circle_coords[letter][1],1,1,fg_color)])
 					tile_set += [tmp_tile]
 			for tmp_tile in tile_set:
 				tmp_tile.create_tile_image()
