@@ -244,6 +244,11 @@ class Quilt(object):
 	def make_quilt_img_path(self):
 		return self.local_save_dir + self.name + "." + self.img_suffix
 	
+	
+	# Desired tile designs:
+	# solids, quarter circles, half circles
+	# 2-color and 3-color
+	# 
 	def add_tile_designs(self, fg_colors=None, bg_colors=None, tile_groups=None):
 		# ["basic","1s","2s","3s","solids"]):
 		if fg_colors is None:
@@ -295,8 +300,28 @@ class Quilt(object):
 					for letter in label:
 						tmp_tile.add_ellipses([(circle_coords[letter][0],circle_coords[letter][1],1,1,fg_color)])
 					tile_set += [tmp_tile]
-			for tmp_tile in tile_set:
-				tmp_tile.create_tile_image()
+		if ("basic-3" in tile_groups) and (len(fg_colors)>1):
+			possibilities = ['ne','nw','sw','se']
+			labels = [p for p in possibilities if p in tile_groups]
+			if len(labels)==0:
+				labels = possibilities
+			# print "BASICS ADDED"
+			# Pick all pairs of possible foreground colours coupled with a distinct background color:
+			fg_pairs = list(itertools.permutations(fg_colors,2))
+			fg_pair_bg_tuples = [(i,j) for i in fg_pairs for j in bg_colors if j not in i]
+			# print fg_pair_bg_tuples
+			for x in fg_pair_bg_tuples:
+				((fgc1,fgc2),bg_color) = x
+				# labels = ['ne','nw','sw','se']
+				center_y = np.array([1-2*(label[0]=="s") for label in labels])
+				center_x = np.array([2*(label[1]=="e")-1 for label in labels])
+				label_tuples = list(itertools.permutations(range(len(labels)),2))
+				for i,j in label_tuples:
+					name_stem = fgc1 + "-" + labels[i] +"_"+ fgc2 + "-" + labels[j] + "_on_" + bg_color
+					tile_set += [Tile(bg_color=bg_color, ellipses=[(center_x[i],center_y[i],2,2,fgc1), (center_x[j],center_y[j],2,2,fgc2)], name=name_stem)]
+					# print name_stem
+		for tmp_tile in tile_set:
+			tmp_tile.create_tile_image()
 		self.tile_set += tile_set
 		# edge_colors[i,j,:] gives the RGB values for the color of the jth edge (clockwise from top) of the ith tile.
 		new_edge_colors = np.array([tmp_tile.edge_colors for tmp_tile in tile_set])
@@ -386,8 +411,10 @@ class Quilt(object):
 		coords = [x[0] for x in zip(itertools.product(range(self.grid_h),range(self.grid_w)))]
 		fail_counts = np.zeros(len(coords))
 		coord_i = 0
+		# Iterate over all coordinates in the quilt:
 		while coord_i < len(coords):
 			i,j = coords[coord_i]
+			# If the quilt patchis already set, skip it:
 			if self.tile_ids[i,j]>=0:
 				coord_i += 1
 			else:

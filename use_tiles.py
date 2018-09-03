@@ -8,9 +8,12 @@ import numpy as np
 # 	(-1,0,1,1) = centred on (-1,0) with respect to the centre of the tile, and (x,y) dimension = (height,width) of tile.
 #   (1,0,1,1)  = centred on (1,0) with same ellipse dimensions.
 reload(tiles)
-seed_quilt = tiles.Quilt(grid_size=(5,5), tile_groups=["basic","1s"], fg_colors=["black","white"], bg_colors=["white","black"], edge_command=[["white","black"],["white"],["white"],["white","black"]])
-seq = tiles.QuiltSequence(seed_quilt, name="new_tiles", n_columns=3)
+seed_quilt = tiles.Quilt(grid_size=(9,9), tile_groups=["basic","basic-3","1s"], fg_colors=["aqua","white","CornflowerBlue"], bg_colors=["white"], edge_command=[["CornflowerBlue","aqua"],["white","aqua"],["white","aqua"],["CornflowerBlue","aqua"]])
+seq = tiles.QuiltSequence(seed_quilt, name="triples", n_columns=3)
 seq.extend_sequence(reps=6)
+seq.extend_sequence(reps=7,fg_colors=["aqua","CornFlowerBlue","navy"],bg_colors=["white","aqua","CornFlowerBlue","navy"], left_edge_swatch=["CornFlowerBlue","aqua"],top_edge_swatch=["CornFlowerBlue","aqua"])
+seq.implement(overwrite=True)
+seq.extend_sequence(reps=7,fg_colors=["aqua","CornFlowerBlue","navy"],bg_colors=["CornFlowerBlue","navy"])
 seq.implement()
 
 
@@ -35,7 +38,7 @@ q.post_to_tumblr()
 
 
 # 
-#   Rough script for creating the blog
+#   Script for creating the blog
 # 
 # Start with original tileset
 reload(tiles)
@@ -81,19 +84,58 @@ for q in reseq.quilt_sequence:
 reseq.qs = reseq.quilt_sequence
 pickle.dump(reseq, open("master_blog_sequence_magenta_insertion.p", "wb"))
 
+# Writing second leg of sequence in stone:
+seq = pickle.load(open("master_blog_sequence.p", "rb"))
+# seq = tiles.QuiltSequence(reseq.qs[-1], name="dress_rehearsal", n_columns=3)
+# seq.extend_sequence(reps=2)
+seq.implement()
+# Week 8: add navy
+seq.extend_sequence(reps=7, tile_groups=["basic","1s","2s"], fg_colors=["aqua","CornflowerBlue","navy"], bg_colors=["white"])
+seq.implement(max_iters=200)
+seq.implement(max_iters=200)
+# Week 9: make more densely navy using two-colour tiles
+seq.extend_sequence(reps=7, tile_groups=["solids","basic","basic-3","1s"], fg_colors=["aqua","CornflowerBlue","navy"], bg_colors=["white"])
+# seq.implement()
+# Week 10: fade to navy edges:
+seq.extend_sequence(reps=7, left_edge_swatch=["white","navy"], top_edge_swatch=["white","navy"])
+# seq.implement()
+# Week 11: no more cyan and cornflower, switch to navy and "Brown" (almost sienna red) on white
+seq.extend_sequence(reps=7, left_edge_swatch=["Brown","navy"], top_edge_swatch=["Brown","navy"], fg_colors=["navy","Brown"], bg_colors=["navy","white"])
+# Week 12: switch background from white to slate grey (almost green)
+seq.extend_sequence(reps=7, fg_colors=["navy","Brown"], bg_colors=["DarkSlateGray"])
+# Week 13: make navy the background instead of DarkSlateGray. Also, old-school tiles: basics and 1s!
+seq.extend_sequence(reps=7, fg_colors=["Brown","DarkSlateGray"], bg_colors=["navy"], tile_groups=["basic","1s"])
+# Week 14: Add LightGreen and make it the new edge color instead of Brown
+seq.extend_sequence(reps=7, left_edge_swatch=["LightGreen","navy"], top_edge_swatch=["LightGreen","navy"], fg_colors=["LightGreen","Brown","DarkSlateGray"], bg_colors=["navy"], tile_groups=["basic","1s","basic-3","2s","3s"])
+# Week 15: Eliminate Brown
+seq.extend_sequence(reps=7, fg_colors=["LightGreen","DarkSlateGray"], bg_colors=["navy"], tile_groups=["basic","1s","2s","3s"])
+# week 16: waves of LightGreen on navy
+seq.extend_sequence(reps=7, tile_groups=["solids","basic"], fg_colors=["LightGreen","navy"], bg_colors=["LightGreen","navy"])
+seq.implement()
+
+
+for q in seq.qs[42:]:
+	q.convert_quilt_to_img()
+	q.post_to_tumblr()
+
+# Save progress and reload same object later using pickles
+pickle.dump(seq, open("master_blog_sequence_2.p", "wb"))
+
+
+
+
+seq.implement(overwrite=True)
+seq.extend_sequence(reps=7, tile_groups=["solids","basic","basic-3","1s"], fg_colors=["aqua","CornflowerBlue","navy","white"], bg_colors=["white"], left_edge_swatch=["white","navy"],top_edge_swatch=["white","navy"])
+# seq.extend_sequence(reps=6, tile_groups=["solids","basic","1s"])
+# seq.extend_sequence(reps=7, tile_groups=["solids","basic","2s","3s"], fg_colors=["aqua","CornflowerBlue"], bg_colors=["white","aqua"], left_edge_swatch=["aqua"], top_edge_swatch=["aqua","CornflowerBlue"])
+seq.implement()
 
 
 
 
 
 # Test out some new designs:
-reseq = pickle.load(open("master_blog_sequence.p", "rb"))
-seq = tiles.QuiltSequence(reseq.qs[-1], name="temp_mast", n_columns=3)
-seq.extend_sequence(reps=2)
-seq.implement()
-seq.extend_sequence(reps=7, tile_groups=["solids","basic","1s"], fg_colors=["aqua","CornflowerBlue","white","navy"], bg_colors=["aqua","CornflowerBlue","white","navy"], left_edge_swatch=["white","navy"])
-# seq.extend_sequence(reps=7, tile_groups=["solids","basic","2s","3s"], fg_colors=["aqua","CornflowerBlue"], bg_colors=["white","aqua"], left_edge_swatch=["aqua"], top_edge_swatch=["aqua","CornflowerBlue"])
-seq.implement()
+
 , top_edge_swatch=["aqua","CornflowerBlue"]
 
 # Test out tile ideas on a temporary sequence:
