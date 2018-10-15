@@ -65,10 +65,10 @@ for q in seq.qs:
 	q.post_to_tumblr()
 
 # Save progress and reload same object later using pickles
-pickle.dump(seq, open("master_blog_sequence.p", "wb"))
+pickle.dump(seq, open("master_blog_sequence.pickle", "wb"))
 
 # To continue later, just reload the sequence:
-reseq = pickle.load(open("master_blog_sequence.p", "rb"))
+reseq = pickle.load(open("master_blog_sequence.pickle", "rb"))
 
 # Rewind to just after the yellows
 reseq.quilt_sequence = reseq.quilt_sequence[:13]
@@ -82,10 +82,10 @@ for q in reseq.quilt_sequence:
 	q.post_to_tumblr()
 
 reseq.qs = reseq.quilt_sequence
-pickle.dump(reseq, open("master_blog_sequence_magenta_insertion.p", "wb"))
+pickle.dump(reseq, open("master_blog_sequence_magenta_insertion.pickle", "wb"))
 
 # Writing second leg of sequence in stone:
-seq = pickle.load(open("master_blog_sequence.p", "rb"))
+seq = pickle.load(open("master_blog_sequence.pickle", "rb"))
 # seq = tiles.QuiltSequence(reseq.qs[-1], name="dress_rehearsal", n_columns=3)
 # seq.extend_sequence(reps=2)
 seq.implement()
@@ -119,35 +119,38 @@ for q in seq.qs[42:]:
 	q.post_to_tumblr()
 
 # Save progress and reload same object later using pickles
-pickle.dump(seq, open("master_blog_sequence_2.p", "wb"))
+# pickle.dump(seq, open("master_blog_sequence_2.pickle", "wb"))
+# Commented out so I don't accidentally overwrite!
 
+# # Batch 3: Hallowe'en color fun
 
+def cross_fade_colors(tmpseq, colorA, colorB, colorC, tile_groups):
+	# Start with two colors, A and B. Insert new color, C, as background.
+	tmpseq.extend_sequence(reps=3, fg_colors=[colorA,colorB], bg_colors=[colorA,colorC], tile_groups=tile_groups)
+	# Switch edge swatch to just color B.
+	tmpseq.extend_sequence(reps=2, top_edge_swatch=[colorB])
+	tmpseq.extend_sequence(reps=1, left_edge_swatch=[colorB])
+	# Swap roles for colors A and C and introduce color C to edge swatch.
+	tmpseq.extend_sequence(reps=2, fg_colors=[colorC,colorB], bg_colors=[colorA,colorB], top_edge_swatch=[colorB,colorC])
+	tmpseq.extend_sequence(reps=1, left_edge_swatch=[colorB,colorC])
+	# Keep going to enjoy new border and color before switching again.
+	tmpseq.extend_sequence(reps=2)
 
-
-seq.implement(overwrite=True)
-seq.extend_sequence(reps=7, tile_groups=["solids","basic","basic-3","1s"], fg_colors=["aqua","CornflowerBlue","navy","white"], bg_colors=["white"], left_edge_swatch=["white","navy"],top_edge_swatch=["white","navy"])
-# seq.extend_sequence(reps=6, tile_groups=["solids","basic","1s"])
-# seq.extend_sequence(reps=7, tile_groups=["solids","basic","2s","3s"], fg_colors=["aqua","CornflowerBlue"], bg_colors=["white","aqua"], left_edge_swatch=["aqua"], top_edge_swatch=["aqua","CornflowerBlue"])
+seq = pickle.load(open("master_blog_sequence_2.pickle", "rb"))
+cross_fade_colors(seq, "navy", "LightGreen", "Chocolate", ["basic","3s"])
+cross_fade_colors(seq, "LightGreen", "Chocolate", "FireBrick", ["basic","1s"])
+cross_fade_colors(seq, "Chocolate", "FireBrick", "DarkOrange", ["basic","2s","3s"])
+cross_fade_colors(seq, "FireBrick", "DarkOrange", "Black", ["basic","3s"])
+cross_fade_colors(seq, "DarkOrange", "Black", "Gray", ["basic","1s","3s"])
 seq.implement()
 
+for q in seq.qs[105:]:
+	q.convert_quilt_to_img()
+	q.post_to_tumblr()
 
+pickle.dump(seq, open("master_blog_sequence_3.pickle", "wb"))
 
 
 
 # Test out some new designs:
-
-, top_edge_swatch=["aqua","CornflowerBlue"]
-
-# Test out tile ideas on a temporary sequence:
-tmp_seq = tiles.QuiltSequence(tiles.Quilt(grid_size=(9,9), tile_groups=["basic","solids"], fg_colors=["aqua","white"], bg_colors=["white","aqua"], edge_command=[["white","aqua"]]), name="test_seq", n_columns=3)
-tmp_seq.extend_sequence(reps=6)
-
-tmp_seq.extend_sequence(reps=7, fg_colors=["aqua","white","CornflowerBlue"], bg_colors=["aqua","white"], tile_groups=["solids","basic"])
-tmp_seq.implement(overwrite=True)
-tmp_seq.extend_sequence(reps=7, tile_groups=["solids","basic","1s","2s","3s"], fg_colors=["aqua","CornflowerBlue"])
-tmp_seq.implement()
-
-tmp_seq.extend_sequence(reps=7, fg_colors=["aqua","white","CornflowerBlue","MediumBlue"], bg_colors=["aqua","white"], tile_groups=["solids","basic","1s","2s"], left_edge_swatch=["white","CornflowerBlue"], top_edge_swatch=["white","CornflowerBlue"])
-tmp_seq.extend_sequence(reps=7, fg_colors=["aqua","white","CornflowerBlue","MediumBlue"], bg_colors=["aqua","white"], tile_groups=["solids","basic","1s"], left_edge_swatch=["white","CornflowerBlue"], top_edge_swatch=["white","CornflowerBlue"])
-tmp_seq.implement(overwrite=True)
-
+tmpseq = tiles.QuiltSequence(seq.qs[-1], name="tmp_seq", n_columns=3)

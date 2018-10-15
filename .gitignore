@@ -1,4 +1,7 @@
 keys.txt
+keys_old.txt
 tiles/*
 quilts/*
 *.pyc
+*.pickle
+master_archive/*
