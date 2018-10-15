@@ -69,7 +69,7 @@ We can create them easily using [svgwrite.image.Image](https://svgwrite.readthed
 
 The code above was used to generate the image below:
 
-<img src="tmp_tile_grid.svg">
+<img src="tmp_tile_grid.png">
 
 To ensure that the tiles within a quilt match up in terms of colour, I updated the Tile object definition so that it would know what its edge colours were, which makes it possible to choose only new tiles that align with already-chosen neighbours.
 
