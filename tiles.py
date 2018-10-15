@@ -240,7 +240,8 @@ class Quilt(object):
 	
 	def add_tile_designs(self, fg_colors=None, bg_colors=None, tile_groups=None):
 		# Append a list of tiles to self.tile_set, according to the fg/bg colors and tile_groups, which define the possibly shapes:
-		assert set(tile_groups).issubset(set(['solids','basic','1s','2s','3s','basic-3']))
+		if tile_groups is not None:
+			assert set(tile_groups).issubset(set(['solids','basic','1s','2s','3s','basic-3','no_fg_as_bg']))
 		# SOLIDS: tile with only background color (1 tile per bg_color)
 		# BASIC: quarter circle against background (4 tiles per fg/bg combination)
 		# 1S: semi-circle along one edge (4 tiles per fg/bg combination)
@@ -258,7 +259,10 @@ class Quilt(object):
 		if "solids" in tile_groups:
 			for bg_color in bg_colors:
 				tile_set += [Tile(bg_color=bg_color, ellipses=[], name=bg_color+"_solid")]
-		color_combos = list(set(list(itertools.product(fg_colors, bg_colors+fg_colors))))
+		if 'no_fg_as_bg' in tile_groups:
+			color_combos = list(set(list(itertools.product(fg_colors, bg_colors))))
+		else:
+			color_combos = list(set(list(itertools.product(fg_colors, bg_colors+fg_colors))))
 		for fg_color,bg_color in color_combos:
 			if fg_color!=bg_color:
 				name_stem = fg_color + "_on_" + bg_color + "_"
